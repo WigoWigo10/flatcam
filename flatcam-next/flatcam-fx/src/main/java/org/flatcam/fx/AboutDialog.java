@@ -53,12 +53,7 @@ final class AboutDialog extends Dialog<Void> {
         description.setId("about-description");
         VBox identity = new VBox(5, title, version, description); identity.setMinWidth(0);
         HBox.setHgrow(identity, Priority.ALWAYS);
-        Node logo = Icons.fromResource("flatcam_icon256.png", 84); logo.setId("about-logo");
-        if (theme.isDark()) {
-            var outline = new javafx.scene.effect.DropShadow(javafx.scene.effect.BlurType.GAUSSIAN,
-                    javafx.scene.paint.Color.web("#d9e2ef"), 1.8, 1.0, 0, 0);
-            logo.setEffect(outline);
-        }
+        Node logo = Icons.fromResource(Icons.APPLICATION_LOGO, 84); logo.setId("about-logo");
         HBox header = new HBox(14, logo, identity);
 
         TabPane tabs = new TabPane(); tabs.setId("about-tabs"); tabs.setMinSize(0, 0);
@@ -124,8 +119,7 @@ final class AboutDialog extends Dialog<Void> {
         setOnShowing(event -> {
             theme.applyTo(pane.getScene());
             if (pane.getScene().getWindow() instanceof Stage stage) {
-                var resource = getClass().getResource("icons/flatcam_icon32.png");
-                if (resource != null) stage.getIcons().setAll(new javafx.scene.image.Image(resource.toExternalForm()));
+                Icons.installWindowIcons(stage);
             }
             loadSystemInfo(system, graphicsDetails, owner);
         });

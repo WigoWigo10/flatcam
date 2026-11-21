@@ -99,10 +99,11 @@ try {
         $_.Name -notlike 'javafx-*' -or $_.Name -like '*-win.jar'
     } | Copy-Item -Destination $packageInput
     $jpackage=Join-Path $RuntimeJdk 'bin\jpackage.exe'
+    $appIcon=Join-Path $PSScriptRoot 'native-launcher\FlatCAMFX.ico'
     $imageParent=Join-Path $build 'image'
     Invoke-Checked $jpackage @('--type','app-image','--name','FlatCAM FX Beta','--app-version',$installerVersion,
         '--input',$packageInput,'--main-jar',"flatcam-fx-$version.jar",'--main-class','org.flatcam.fx.FlatCamLauncher',
-        '--runtime-image',$runtime,'--icon',(Join-Path $PSScriptRoot '..\assets\resources\flatcam_icon256.ico'),'--dest',$imageParent)
+        '--runtime-image',$runtime,'--icon',$appIcon,'--dest',$imageParent)
     $image=Join-Path $imageParent 'FlatCAM FX Beta'
     # Keep the dedicated-GPU exports and process-wide DPI manifest in the executable that loads the JVM.
     $compiler='C:\msys64\ucrt64\bin\g++.exe'
@@ -130,11 +131,13 @@ try {
     Invoke-Checked 'tar.exe' @('-a','-cf',$zip,'-C',$imageParent,'FlatCAM FX Beta')
     if(!$PortableOnly) {
         foreach($kind in @('msi','exe')) {
-            Invoke-Checked $jpackage @('--type',$kind,'--name','FlatCAM FX Beta','--app-image',$image,'--app-version',$installerVersion,
+            $installerArgs=@('--type',$kind,'--name','FlatCAM FX Beta','--app-image',$image,'--app-version',$installerVersion,
                 '--vendor','FlatCAM FX contributors','--description',"FlatCAM FX $releaseLabel - Beta testing",
                 '--license-file',(Join-Path $image 'LICENSE.txt'),'--dest',$build,'--install-dir','FlatCAM FX Beta',
                 '--win-per-user-install','--win-menu','--win-menu-group','FlatCAM FX Beta','--win-shortcut','--win-dir-chooser',
                 '--win-upgrade-uuid','5AE0F49D-3943-495D-81E3-B4B945BE5356')
+            if($kind -eq 'exe') { $installerArgs+=@('--icon',$appIcon) }
+            Invoke-Checked $jpackage $installerArgs
             $installer=Get-ChildItem -LiteralPath $build -Filter "*.$kind" | Select-Object -First 1
             if(!$installer) {throw "Missing $kind installer"}
             Rename-Item -LiteralPath $installer.FullName -NewName "FlatCAM-FX-$releaseLabel-windows-x64-setup.$kind"

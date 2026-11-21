@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">FlatCAM FX</title>
+  <defs>
+    <clipPath id="baseline">
+      <path d="M0 0H128V109H0Z"/>
+    </clipPath>
+    <clipPath id="drill-holes">
+      <path clip-rule="evenodd" d="M0 0H128V128H0Z
+        M99 31a6 6 0 1 0 12 0a6 6 0 1 0 -12 0Z
+        M52.4 61a4.6 4.6 0 1 0 9.2 0a4.6 4.6 0 1 0 -9.2 0Z"/>
+    </clipPath>
+  </defs>
+
+  <g clip-path="url(#drill-holes)">
+    <path fill="#0866e8" d="M12 43L31 24H105V38H39L29 48V55.5H57V66.5H29V100.6L22 109H12Z"/>
+    <g clip-path="url(#baseline)" fill="none" stroke="#00b7c2">
+      <path d="M35 115L105 31" stroke-width="13.5"/>
+      <path d="M57 61L111 115" stroke-width="12.5"/>
+    </g>
+    <g fill="#00b7c2">
+      <circle cx="105" cy="31" r="12"/>
+      <circle cx="57" cy="61" r="9"/>
+    </g>
+  </g>
+</svg>

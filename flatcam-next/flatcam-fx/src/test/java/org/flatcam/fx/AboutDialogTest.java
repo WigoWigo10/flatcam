@@ -8,6 +8,8 @@ import javafx.scene.control.Hyperlink;
 import javafx.scene.control.TabPane;
 import javafx.scene.control.TableView;
 import javafx.scene.control.TextArea;
+import javafx.scene.image.ImageView;
+import javafx.stage.Stage;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -26,8 +28,9 @@ class AboutDialogTest {
                 var tabs = (TabPane) pane.lookup("#about-tabs"); assertNotNull(tabs);
                 assertEquals(List.of("Apresentação", "Programadores", "Tradutores", "Licença", "Atribuições", "Sistema"),
                         tabs.getTabs().stream().map(javafx.scene.control.Tab::getText).toList());
-                assertTrue(dialog.isResizable()); assertNotNull(pane.lookup("#about-logo"));
-                assertEquals(theme.isDark(), pane.lookup("#about-logo").getEffect() != null);
+                assertTrue(dialog.isResizable());
+                var logo = assertInstanceOf(ImageView.class, pane.lookup("#about-logo"));
+                assertFalse(logo.getImage().isError());
                 assertTrue(pane.getScene().getStylesheets().stream().anyMatch(url -> url.contains(theme.isDark() ? "dark" : "light")));
                 for (double width : new double[]{360, 480, 700}) {
                     pane.resize(width, 510);
@@ -89,6 +92,11 @@ class AboutDialogTest {
             AboutDialog dialog = new AboutDialog(null, ThemeOption.CLASSIC_DARK, ignored -> { }, copied::add);
             try {
                 dialog.show(); assertTrue(dialog.isShowing());
+                var pane = dialog.getDialogPane();
+                var stage = (Stage) pane.getScene().getWindow();
+                assertEquals(List.of(16.0, 24.0, 32.0, 48.0, 64.0, 256.0),
+                        stage.getIcons().stream().map(javafx.scene.image.Image::getWidth).toList());
+                assertSame(((ImageView) pane.lookup("#about-logo")).getImage(), stage.getIcons().getLast());
                 ((Button) dialog.getDialogPane().lookupButton(AboutDialog.COPY)).fire();
                 assertTrue(dialog.isShowing()); assertEquals(1, copied.size());
                 dialog.close(); assertFalse(dialog.isShowing());

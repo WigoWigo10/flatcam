@@ -71,6 +71,7 @@ public class MainApp extends Application {
         StartupTarget startup = startupTarget();
         Rectangle2D startupBounds = startup.screen().getBounds();
         primaryStage.setTitle("FlatCAM FX — " + AboutInfo.version());
+        Icons.installWindowIcons(primaryStage);
         FlatCamLauncher.startupMessage(I18n.text("ui.14281253fe7d"));
         primaryStage.setScene(mainWindow.createScene());
         primaryStage.setWidth(Math.min(AppPreferences.loadWindowWidth(1200),

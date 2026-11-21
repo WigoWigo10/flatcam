@@ -190,7 +190,7 @@ final class StartupSplash implements AutoCloseable {
             setOpaque(true); setBackground(palette.background());
             getAccessibleContext().setAccessibleName(I18n.text("ui.da231af29b4d"));
             getAccessibleContext().setAccessibleDescription(message);
-            try (var stream=StartupSplash.class.getResourceAsStream("icons/"+(theme.isDark() ? "dark/" : "")+"flatcam_icon256.png")) {
+            try (var stream=StartupSplash.class.getResourceAsStream("icons/"+Icons.APPLICATION_LOGO)) {
                 if(stream!=null) logo=ImageIO.read(stream);
             } catch(java.io.IOException ignored) { /* The wordmark and PCB traces remain available. */ }
         }

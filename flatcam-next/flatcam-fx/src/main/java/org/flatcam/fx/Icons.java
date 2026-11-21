@@ -11,6 +11,7 @@ import javafx.scene.shape.Polyline;
 import javafx.scene.shape.Rectangle;
 import javafx.scene.shape.SVGPath;
 import javafx.scene.transform.Scale;
+import javafx.stage.Stage;
 
 /**
  * Small monochrome toolbar icons, built as vector shapes (not raster images)
@@ -21,6 +22,8 @@ import javafx.scene.transform.Scale;
  * simple enough to draw directly rather than pull in more path data.
  */
 final class Icons {
+
+    static final String APPLICATION_LOGO = "brand/flatcam-fx-256.png";
 
     private static final double NATIVE_SIZE = 24.0;
     private static final java.util.Map<String, Image> RESOURCE_IMAGES = new java.util.concurrent.ConcurrentHashMap<>();
@@ -80,8 +83,27 @@ final class Icons {
      * lookalike. See flatcam-fx/src/main/resources/org/flatcam/fx/icons/.
      */
     static Node fromResource(String fileName, double size) {
+        ImageView view = new ImageView(resourceImage(fileName));
+        view.setFitWidth(size);
+        view.setFitHeight(size);
+        view.setPreserveRatio(true);
+        view.setSmooth(true);
+        return view;
+    }
+
+    static void installWindowIcons(Stage stage) {
+        stage.getIcons().setAll(
+                resourceImage("brand/flatcam-fx-16.png"),
+                resourceImage("brand/flatcam-fx-24.png"),
+                resourceImage("brand/flatcam-fx-32.png"),
+                resourceImage("brand/flatcam-fx-48.png"),
+                resourceImage("brand/flatcam-fx-64.png"),
+                resourceImage(APPLICATION_LOGO));
+    }
+
+    private static Image resourceImage(String fileName) {
         // Share immutable image data, never Nodes: an ImageView can belong to only one parent.
-        Image image = RESOURCE_IMAGES.computeIfAbsent(fileName, name -> {
+        return RESOURCE_IMAGES.computeIfAbsent(fileName, name -> {
             try (var input = Icons.class.getResourceAsStream("icons/" + name)) {
                 if (input == null) throw new IllegalArgumentException("Missing icon: " + name);
                 return new Image(input);
@@ -89,12 +111,6 @@ final class Icons {
                 throw new java.io.UncheckedIOException(failure);
             }
         });
-        ImageView view = new ImageView(image);
-        view.setFitWidth(size);
-        view.setFitHeight(size);
-        view.setPreserveRatio(true);
-        view.setSmooth(true);
-        return view;
     }
 
     private static Node scaled(Node shape, double size) {
