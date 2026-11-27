@@ -1,5 +1,13 @@
 # Matriz de paridade FlatCAM FX × FlatCAM Python — 2026-10-10
 
+## Estado atual consolidado — 2026-11-18
+
+Consulte [PENDENCIAS_ATUAIS_20261118.md](PENDENCIAS_ATUAIS_20261118.md) para as
+lacunas atuais. As entregas e contagens datadas abaixo são históricas: várias
+ausências já foram implementadas. O novo mapa distingue falta de implementação,
+validação pendente, diferença deliberada e experimento; não calcula uma
+porcentagem global a partir de casos CAM ou nomes de comandos.
+
 ## Candidata Beta 0.1.0-beta.3 — 2026-10-29
 
 Precisão de entrada NCC/Isolation, retomada dos formulários, parâmetros de Rest,

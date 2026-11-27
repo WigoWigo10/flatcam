@@ -1,0 +1,1158 @@
+{
+  "schema": 1,
+  "date": "2026-11-18",
+  "baseRevision": "c99d7ed088a094a7644baa2ab7318ce97bc29882",
+  "scope": "Consolidated remaining work, not exhaustive field-by-field or hardware certification. Legacy Python parity separated from Evo/future experiments.",
+  "taskCount": 42,
+  "tasks": [
+    {
+      "id": "PERF-01",
+      "area": "Desempenho CAM",
+      "priority": "P1",
+      "kind": "Otimizar",
+      "title": "Buffers e listas da máscara Rest",
+      "doneWhen": "Reduzir tempo/alocações nos casos congelados, preservando caminhos, raio, tolerâncias, desempates e área restante.",
+      "evidence": [
+        "GEOMETRY_HOTSPOTS_20261118.md",
+        "flatcam-cam/src/main/java/org/flatcam/cam/ncc/geosbuffer/GeosSubgraphDepthLocater.java"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "PERF-02",
+      "area": "Desempenho CAM",
+      "priority": "P1",
+      "kind": "Otimizar",
+      "title": "Recortes repetidos das linhas em Lines",
+      "doneWhen": "Demonstrar ganho pareado nas Horizon simples/panelizada com recortes, ordem e direção preservados.",
+      "evidence": [
+        "GEOMETRY_HOTSPOTS_20261118.md",
+        "flatcam-cam/src/main/java/org/flatcam/cam/ncc/NccGenerator.java"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "PERF-03",
+      "area": "Desempenho CAM",
+      "priority": "P2",
+      "kind": "Investigar",
+      "title": "Memória, cancelamento e orçamento de workers em cargas grandes",
+      "doneWhen": "Medir pico/pressão de memória e resposta ao cancelar; coordenar pools sem prometer interrupção instantânea de uma primitiva JTS.",
+      "evidence": [
+        "GEOMETRY_EDITOR.md",
+        "ARQUITETURA_RENDERIZACAO_FUTURA.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "PERF-04",
+      "area": "Desempenho CAM",
+      "priority": "P2",
+      "kind": "Otimizar",
+      "title": "Volume de pontos e custo da Espiral densa",
+      "doneWhen": "Avaliar tamanho do projeto/G-code, desenho e geração mantendo cobertura e precisão; publicar ganhos e perdas.",
+      "evidence": [
+        "SPIRAL_BUDGET_OPTIMIZATION.md",
+        "SPIRAL.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "PERF-05",
+      "area": "Desempenho CAM",
+      "priority": "P3",
+      "kind": "Experimento",
+      "title": "Índice dos extremos do Connect",
+      "doneWhen": "Só integrar se o ganho adicional justificar o custo e os caminhos brutos/desempates continuarem corretos.",
+      "evidence": [
+        "CONNECT_MEASUREMENT_20261118.md",
+        "CONNECT_OPTIMIZATION.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "VAL-01",
+      "area": "Relatos e validação",
+      "priority": "P1",
+      "kind": "Aguarda dados",
+      "title": "Relato Rest com várias Clear do Yago",
+      "doneWhen": "Obter versão, arquivo/receita e seleção; reproduzir antes de atribuir causa ou corrigir.",
+      "evidence": [
+        "NCC_REST_MULTI_CLEAR_REVIEW.md"
+      ],
+      "execution": "Depende do testador"
+    },
+    {
+      "id": "VAL-02",
+      "area": "Relatos e validação",
+      "priority": "P1",
+      "kind": "Validar",
+      "title": "Matriz ampliada de múltiplas telas e DPI",
+      "doneWhen": "Conferir duas larguras salvas, movimentos repetidos, diálogos, Software e desconectar/reconectar monitores.",
+      "evidence": [
+        "MULTI_MONITOR_REVIEW_20261117.md"
+      ],
+      "execution": "Misto"
+    },
+    {
+      "id": "VAL-03",
+      "area": "Relatos e validação",
+      "priority": "P1",
+      "kind": "Validar",
+      "title": "Fluxos visuais completos com arquivos variados",
+      "doneWhen": "Percorrer importação, preparo/panelização, CAM, revisão, exportação e reabertura; testar cancelamento/edições concorrentes e seletores nativos.",
+      "evidence": [
+        "FLUXO_PRINCIPAL.md",
+        "UI_PARITY_REVIEW.md"
+      ],
+      "execution": "Misto"
+    },
+    {
+      "id": "CAM-01",
+      "area": "CAM e CNC",
+      "priority": "P1",
+      "kind": "Validar",
+      "title": "Cobertura real dos caminhos por fresa",
+      "doneWhen": "Ampliar corpus e comparar pegada, resíduos brutos/tolerados, pontes, rasgos e limites físicos do desenho.",
+      "evidence": [
+        "CLEARING_COVERAGE_VALIDATION.md",
+        "CNC_COVERAGE.md"
+      ],
+      "execution": "Misto"
+    },
+    {
+      "id": "CAM-02",
+      "area": "CAM e CNC",
+      "priority": "P2",
+      "kind": "Parcial",
+      "title": "Perfil TT e parâmetros CNC da DB no Paint",
+      "doneWhen": "Transportar os dados associados a cada fresa até Geometry/CNC e salvar/reabrir, sem substituir tudo por C1.",
+      "evidence": [
+        "TOOLS_DATABASE_TRANSFER.md",
+        "flatcam-fx/src/main/java/org/flatcam/fx/MainWindow.java"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "CAM-03",
+      "area": "CAM e CNC",
+      "priority": "P2",
+      "kind": "Parcial",
+      "title": "Opções avançadas da Tools Database",
+      "doneWhen": "Inventariar/consumir campos restantes, incluindo sondagem/exclusões e uso explícito no Terminal, com unidades confirmadas.",
+      "evidence": [
+        "CNC_DATABASE_COMMON.md",
+        "TOOLS_DATABASE_TRANSFER.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "CAM-04",
+      "area": "CAM e CNC",
+      "priority": "P2",
+      "kind": "Parcial",
+      "title": "Parâmetros restantes dos preprocessadores",
+      "doneWhen": "Conferir Start Z separado na sondagem, compensações de mesa, opções individuais e metadados nativos; manter diferenças deliberadas explícitas.",
+      "evidence": [
+        "PREPROCESSADORES.md",
+        "CNC_FOLLOWUP_REVIEW.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "CAM-05",
+      "area": "CAM e CNC",
+      "priority": "P2",
+      "kind": "Parcial",
+      "title": "Alvos de cobertura após transformar/panelizar Geometry",
+      "doneWhen": "Transportar ou recalcular alvos quando semanticamente válido, preservando invalidação de informações obsoletas.",
+      "evidence": [
+        "CNC_COVERAGE.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "CAM-06",
+      "area": "CAM e CNC",
+      "priority": "P2",
+      "kind": "Parcial",
+      "title": "Classificação e reabertura do SolderPaste",
+      "doneWhen": "Distinguir geometrias de dispensa das demais e recuperar a semântica dos jobs; ampliar seleção de fontes conforme contrato.",
+      "evidence": [
+        "PREPROCESSADORES.md",
+        "flatcam-fx/src/main/java/org/flatcam/fx/SolderPasteToolPanel.java"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "CAM-07",
+      "area": "CAM e CNC",
+      "priority": "P2",
+      "kind": "Investigar",
+      "title": "Qualidade da ordem dos trajetos e levantamentos",
+      "doneWhen": "Comparar programas finais em placas/painéis: deslocamentos, entradas e estimativas, sem confundir tempo de cálculo com tempo de máquina.",
+      "evidence": [
+        "CNC_ROUTING.md",
+        "CLEARING_PREVIEW_REFINEMENTS.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "PAR-01",
+      "area": "Paridade funcional",
+      "priority": "P2",
+      "kind": "Parcial",
+      "title": "Famílias de comandos FlatCAM no Tcl",
+      "doneWhen": "Priorizar paint, panelize, milldrills/millslots, primitivas e abertura/exportação; verificar flags/resultados, não apenas nomes.",
+      "evidence": [
+        "TERMINAL_TCL.md",
+        "flatcam-fx/src/main/java/org/flatcam/fx/TclFlatcamCommands.java"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "PAR-02",
+      "area": "Paridade funcional",
+      "priority": "P2",
+      "kind": "Decidir",
+      "title": "Dialeto Tcl mais completo",
+      "doneWhen": "Definir compatibilidade desejada para proc/catch/switch/string/array, quoting e listas; ampliar com testes de scripts reais.",
+      "evidence": [
+        "TERMINAL_TCL.md",
+        "flatcam-cam/src/main/java/org/flatcam/cam/tcl/TclInterpreter.java"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "PAR-03",
+      "area": "Paridade funcional",
+      "priority": "P2",
+      "kind": "Implementar",
+      "title": "Preferências gerais de mouse e cursor",
+      "doneWhen": "Expor os controles do legado que fizerem sentido: forma/tamanho/espessura/cor e mapeamento de botões, com efeito real.",
+      "evidence": [
+        "PREFERENCIAS.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "PAR-04",
+      "area": "Paridade funcional",
+      "priority": "P2",
+      "kind": "Inventariar",
+      "title": "Preferências restantes campo a campo",
+      "doneWhen": "Mapear cada campo Python a um consumidor FX, diferença deliberada ou lacuna; não criar controles Qt/VisPy sem equivalente útil.",
+      "evidence": [
+        "PREFERENCIAS.md",
+        "flatcam-fx/src/main/java/org/flatcam/fx/ToolDefaults.java"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "PAR-05",
+      "area": "Paridade funcional",
+      "priority": "P2",
+      "kind": "Parcial",
+      "title": "Gestos, atalhos e opções avançadas dos editores",
+      "doneWhen": "Conferir Geometry/Gerber/Excellon/G-code contra a referência, gesto por gesto; completar lacunas demonstradas.",
+      "evidence": [
+        "GEOMETRY_EDITOR.md",
+        "UI_PARITY_REVIEW.md"
+      ],
+      "execution": "Misto"
+    },
+    {
+      "id": "PAR-06",
+      "area": "Paridade funcional",
+      "priority": "P2",
+      "kind": "Implementar",
+      "title": "Demais idiomas do Python",
+      "doneWhen": "Adicionar Alemão, Italiano, Romeno, Russo e Turco com auditoria de ajuda, layout e textos de máquina preservados.",
+      "evidence": [
+        "I18N.md",
+        "flatcam-fx/src/main/java/org/flatcam/fx/UiLanguage.java"
+      ],
+      "execution": "Misto"
+    },
+    {
+      "id": "PAR-07",
+      "area": "Paridade funcional",
+      "priority": "P2",
+      "kind": "Parcial",
+      "title": "Subconjuntos ainda não importados de SVG/DXF",
+      "doneWhen": "Avaliar texto e demais entidades recusadas/ignoradas e explicitar seus limites; não tratar os importadores existentes como ausentes.",
+      "evidence": [
+        "flatcam-cam/src/main/java/org/flatcam/cam/svg/SvgImporter.java",
+        "flatcam-cam/src/main/java/org/flatcam/cam/dxf/DxfImporter.java"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "IO-01",
+      "area": "Projetos e dados",
+      "priority": "P2",
+      "kind": "Parcial",
+      "title": "Semântica de opções avançadas e macros no FlatPrj",
+      "doneWhen": "Ampliar o que pode ser editado/regenerado com fidelidade e testar mais projetos no Python real, preservando dados opacos não alterados.",
+      "evidence": [
+        "COMPATIBILIDADE_FLATPRJ.md"
+      ],
+      "execution": "Misto"
+    },
+    {
+      "id": "IO-02",
+      "area": "Projetos e dados",
+      "priority": "P2",
+      "kind": "Decidir",
+      "title": "Recusas do exportador legado",
+      "doneWhen": "Decidir suporte explícito ou manter guardas para exclusões, sondagem, programas nativos, rasgos curvos e unidades mistas.",
+      "evidence": [
+        "COMPATIBILIDADE_FLATPRJ.md",
+        "flatcam-application/src/main/java/org/flatcam/app/project/PythonProjectWriter.java"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "IO-03",
+      "area": "Projetos e dados",
+      "priority": "P2",
+      "kind": "Parcial",
+      "title": "Scripts/documentos como objetos do projeto",
+      "doneWhen": "Definir integração nativa de novos scripts/documentos; hoje scripts FX são arquivos em abas, não ScriptObject persistido.",
+      "evidence": [
+        "TERMINAL_TCL.md",
+        "COMPATIBILIDADE_FLATPRJ.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "IO-04",
+      "area": "Projetos e dados",
+      "priority": "P3",
+      "kind": "Decidir",
+      "title": "Limite de 10 MB da Tools Database",
+      "doneWhen": "Tornar ajustável ou rever após medir memória/tempo e validar entradas; esse limite não é uma recusa universal de Gerbers grandes.",
+      "evidence": [
+        "flatcam-application/src/main/java/org/flatcam/app/project/LegacyToolsDatabase.java",
+        "flatcam-application/src/main/java/org/flatcam/app/project/ToolsDatabase.java"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "UX-01",
+      "area": "Interface e ajuda",
+      "priority": "P1",
+      "kind": "Investigar",
+      "title": "Clareza da seleção de ferramentas no Rest",
+      "doneWhen": "Avaliar resumo de fresas selecionadas e geração única; não chamar essa hipótese de causa confirmada do relato.",
+      "evidence": [
+        "NCC_REST_MULTI_CLEAR_REVIEW.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "UX-02",
+      "area": "Interface e ajuda",
+      "priority": "P2",
+      "kind": "Parcial",
+      "title": "Guia de uso das ferramentas secundárias",
+      "doneWhen": "Complementar os 13 tópicos com Paint, Milling, Calibration, Rules Check, SolderPaste e utilitários; manter exemplos e traduções.",
+      "evidence": [
+        "USER_GUIDE.md",
+        "flatcam-fx/src/main/java/org/flatcam/fx/HelpGuideCatalog.java"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "UX-03",
+      "area": "Interface e ajuda",
+      "priority": "P2",
+      "kind": "Validar",
+      "title": "Traduções e mensagens dinâmicas de backend",
+      "doneWhen": "Revisão linguística nativa ES/FR e mensagens estruturadas traduzíveis; preservar nomes, coordenadas e código da máquina.",
+      "evidence": [
+        "I18N.md"
+      ],
+      "execution": "Misto"
+    },
+    {
+      "id": "UX-04",
+      "area": "Interface e ajuda",
+      "priority": "P2",
+      "kind": "Validar",
+      "title": "Layouts, tabelas, tooltips e diálogos em todos os estados",
+      "doneWhen": "Conferir painéis estreitos, fontes grandes, foco/edição, desabilitados, temas e DPI, ampliando a auditoria dos estados novos.",
+      "evidence": [
+        "TOOLTIPS.md",
+        "WORKSPACE_VISUAL_REVIEW.md",
+        "UI_PARITY_REVIEW.md"
+      ],
+      "execution": "Misto"
+    },
+    {
+      "id": "RND-01",
+      "area": "Plot e renderização",
+      "priority": "P3",
+      "kind": "Experimento",
+      "title": "Backend gráfico opcional com buffers persistentes",
+      "doneWhen": "Comparar um protótipo com Canvas/Prism, incluindo alpha/caps/joins/picking e fallback, sem substituir o backend antes de provar benefício.",
+      "evidence": [
+        "ARQUITETURA_RENDERIZACAO_FUTURA.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "RND-02",
+      "area": "Plot e renderização",
+      "priority": "P2",
+      "kind": "Validar",
+      "title": "Latência fria e fluidez em diferentes GPUs/DPI",
+      "doneWhen": "Repetir cenários equivalentes após mudanças, separando fila/pulso de FPS apresentado e custos frio/aquecido.",
+      "evidence": [
+        "BENCHMARK_PC_ARC155H.md",
+        "PLOT_PRESENTED_FPS.md"
+      ],
+      "execution": "Misto"
+    },
+    {
+      "id": "RND-03",
+      "area": "Plot e renderização",
+      "priority": "P2",
+      "kind": "Investigar",
+      "title": "Orçamentos de cache/raster e camadas densas",
+      "doneWhen": "Medir memória, invalidações e publicação de camadas grandes; preservar detalhes e geometria visível.",
+      "evidence": [
+        "PLOT_PERFORMANCE.md",
+        "PLOT_RASTER_BOUNDARY.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "REL-01",
+      "area": "Distribuição e validação",
+      "priority": "P1",
+      "kind": "Validar",
+      "title": "Próxima Beta com a correção multitela",
+      "doneWhen": "Quando autorizada, versionar/buildar e conferir que MSI/EXE/portátil contêm o reparo posterior à Beta 8.",
+      "evidence": [
+        "MULTI_MONITOR_REVIEW_20261117.md",
+        "release/BETA-0.1.0-beta.8.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "REL-02",
+      "area": "Distribuição e validação",
+      "priority": "P1",
+      "kind": "Validar",
+      "title": "Regressão integral e pacote final da candidata",
+      "doneWhen": "Rodar suíte completa, corpus/round-trips, instalação/upgrade e smoke do artefato exato; não usar apenas resultados focados antigos.",
+      "evidence": [
+        "release/BUILD_BETA.md",
+        "release/VALIDACAO-0.1.0-beta.8.md"
+      ],
+      "execution": "Misto"
+    },
+    {
+      "id": "REL-03",
+      "area": "Distribuição e validação",
+      "priority": "P1",
+      "kind": "Validar",
+      "title": "Controladores e usinagem física",
+      "doneWhen": "Validar famílias realmente usadas, alturas, troca, spindle/laser, sondagem e fixação em ambiente controlado com equipamento disponível.",
+      "evidence": [
+        "PREPROCESSADORES.md",
+        "FLUXO_PRINCIPAL.md"
+      ],
+      "execution": "Depende de equipamento/operador"
+    },
+    {
+      "id": "REL-04",
+      "area": "Distribuição e validação",
+      "priority": "P3",
+      "kind": "Decidir",
+      "title": "Assinatura digital e atualização automática",
+      "doneWhen": "Definir distribuição, assinatura e política de atualização; instaladores e upgrade MSI já existem.",
+      "evidence": [
+        "release/BETA-0.1.0-beta.8.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "FUT-01",
+      "area": "Evoluções futuras",
+      "priority": "P3",
+      "kind": "Experimento",
+      "title": "GEOS nativo via FFM e eventual camada Rust",
+      "doneWhen": "Prototipar somente o gargalo escolhido e medir conversões, memória, cancelamento e resultados antes de integrar.",
+      "evidence": [
+        "GEOMETRY_HOTSPOTS_20261118.md",
+        "CONNECT_MEASUREMENT_20261118.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "FUT-02",
+      "area": "Evoluções futuras",
+      "priority": "P2",
+      "kind": "Avaliar Evo",
+      "title": "Climb/Conventional por fresa NCC/Paint",
+      "doneWhen": "Portar com orientação de ilhas/mirroring/Connect e múltiplas profundidades verificados; campo atual é de ISO, não direção Clear por fresa.",
+      "evidence": [
+        "FLATCAM_EVO_REVIEW.md",
+        "flatcam-cam/src/main/java/org/flatcam/cam/ncc/NccToolSettings.java"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "FUT-03",
+      "area": "Evoluções futuras",
+      "priority": "P3",
+      "kind": "Avaliar Evo",
+      "title": "Exclusões CAM vinculadas ao objeto",
+      "doneWhen": "Definir transformação, persistência e panelização; não confundir com exclusões CNC Around/Over já existentes.",
+      "evidence": [
+        "FLATCAM_EVO_REVIEW.md",
+        "CNC_EXCLUSIONS.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "FUT-04",
+      "area": "Evoluções futuras",
+      "priority": "P3",
+      "kind": "Avaliar Evo",
+      "title": "Importação direta de KiCad PCB/Eagle/EasyEDA",
+      "doneWhen": "Escolher um formato, corpus, licença e contrato de cobre/furos/unidades antes de portar.",
+      "evidence": [
+        "FLATCAM_EVO_REVIEW.md"
+      ],
+      "execution": "Autônomo"
+    },
+    {
+      "id": "FUT-05",
+      "area": "Evoluções futuras",
+      "priority": "P3",
+      "kind": "Avaliar Evo",
+      "title": "Compatibilidade com o novo esquema de projetos Evo",
+      "doneWhen": "Manter referência Python antiga e validar separadamente o snapshot Evo; não prometer intercâmbio do esquema novo.",
+      "evidence": [
+        "FLATCAM_EVO_REVIEW.md"
+      ],
+      "execution": "Autônomo"
+    }
+  ],
+  "runtimeInventory": {
+    "builtins": [
+      "append",
+      "expr",
+      "foreach",
+      "if",
+      "incr",
+      "lindex",
+      "list",
+      "llength",
+      "puts",
+      "set",
+      "unset",
+      "while"
+    ],
+    "flatcamAliases": [
+      "bbox",
+      "bounding_box",
+      "bounds",
+      "cncjob",
+      "cutout",
+      "del",
+      "delete",
+      "drillcncjob",
+      "ee",
+      "egr",
+      "export_exc",
+      "export_excellon",
+      "export_gcode",
+      "export_gerber",
+      "export_grb",
+      "export_svg",
+      "get_bounds",
+      "get_names",
+      "isolate",
+      "join_excellon",
+      "join_excellons",
+      "join_geometries",
+      "join_geometry",
+      "mirror",
+      "ncc",
+      "ncc_clear",
+      "new_geometry",
+      "offset",
+      "open_excellon",
+      "open_gerber",
+      "open_project",
+      "plot_all",
+      "plot_objects",
+      "rotate",
+      "save_project",
+      "scale",
+      "set_active",
+      "skew",
+      "write_gcode"
+    ],
+    "toolDefaultsCount": 219,
+    "toolDefaultsGroups": {
+      "CNC Job: ExibiÃ§Ã£o": 10,
+      "Fiducials": 3,
+      "Etch Compensation": 1,
+      "Gerber: ExibiÃ§Ã£o": 5,
+      "Film": 9,
+      "CNC Job (geral)": 2,
+      "Gerber: AvanÃ§adas": 2,
+      "Invert Gerber": 1,
+      "Geometry CNC": 8,
+      "Punch Gerber": 7,
+      "ImportaÃ§Ã£o: Excellon": 6,
+      "Excellon: ExibiÃ§Ã£o": 5,
+      "Extract Drills": 7,
+      "Editor Geometry": 4,
+      "Cutout": 12,
+      "Optimal": 1,
+      "Copper Thieving": 12,
+      "Excellon Milling": 1,
+      "ExportaÃ§Ã£o: Gerber": 4,
+      "Drilling": 10,
+      "Panelize": 6,
+      "Geometry: ExibiÃ§Ã£o": 3,
+      "Calibration": 3,
+      "ExportaÃ§Ã£o: Excellon": 6,
+      "Paint": 7,
+      "ImportaÃ§Ã£o: Gerber": 2,
+      "NCC": 12,
+      "Rules Check": 20,
+      "QRCode": 3,
+      "2-Sided": 1,
+      "SolderPaste": 1,
+      "Isolation": 11,
+      "Editor Excellon": 20,
+      "Corner Markers": 4,
+      "Editor Gerber": 10
+    },
+    "pythonCommandFamilies": [
+      {
+        "file": "TclCommandAddCircle.py",
+        "aliases": [
+          "add_circle"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandAddPolygon.py",
+        "aliases": [
+          "add_polygon",
+          "add_poly"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandAddPolyline.py",
+        "aliases": [
+          "add_polyline"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandAddRectangle.py",
+        "aliases": [
+          "add_rectangle"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandAlignDrill.py",
+        "aliases": [
+          "aligndrill"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandAlignDrillGrid.py",
+        "aliases": [
+          "aligndrillgrid"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandBbox.py",
+        "aliases": [
+          "bounding_box",
+          "bbox"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandBounds.py",
+        "aliases": [
+          "get_bounds",
+          "bounds"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandClearShell.py",
+        "aliases": [
+          "clear"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandCncjob.py",
+        "aliases": [
+          "cncjob"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandCopperClear.py",
+        "aliases": [
+          "ncc_clear",
+          "ncc"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandCutout.py",
+        "aliases": [
+          "cutout"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandDelete.py",
+        "aliases": [
+          "delete",
+          "del"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandDrillcncjob.py",
+        "aliases": [
+          "drillcncjob"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandExportDXF.py",
+        "aliases": [
+          "export_dxf",
+          "edxf"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandExportExcellon.py",
+        "aliases": [
+          "export_exc",
+          "ee",
+          "export_excellon"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandExportGcode.py",
+        "aliases": [
+          "export_gcode"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandExportGerber.py",
+        "aliases": [
+          "export_grb",
+          "egr",
+          "export_gerber"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandExportSVG.py",
+        "aliases": [
+          "export_svg"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandExteriors.py",
+        "aliases": [
+          "exteriors",
+          "ext"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandFollow.py",
+        "aliases": [
+          "follow"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandGeoCutout.py",
+        "aliases": [
+          "geocutout",
+          "geoc"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandGeoUnion.py",
+        "aliases": [
+          "geo_union"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandGetNames.py",
+        "aliases": [
+          "get_names"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandGetPath.py",
+        "aliases": [
+          "get_path"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandGetSys.py",
+        "aliases": [
+          "get_sys",
+          "getsys"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandHelp.py",
+        "aliases": [
+          "help"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandImportSvg.py",
+        "aliases": [
+          "import_svg"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandInteriors.py",
+        "aliases": [
+          "interiors"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandIsolate.py",
+        "aliases": [
+          "isolate"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandJoinExcellon.py",
+        "aliases": [
+          "join_excellon",
+          "join_excellons"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandJoinGeometry.py",
+        "aliases": [
+          "join_geometries",
+          "join_geometry"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandListSys.py",
+        "aliases": [
+          "list_sys",
+          "listsys"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandMillDrills.py",
+        "aliases": [
+          "milldrills",
+          "milld"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandMillSlots.py",
+        "aliases": [
+          "millslots",
+          "mills"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandMirror.py",
+        "aliases": [
+          "mirror"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandNew.py",
+        "aliases": [
+          "new"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandNewExcellon.py",
+        "aliases": [
+          "new_excellon"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandNewGeometry.py",
+        "aliases": [
+          "new_geometry"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandNewGerber.py",
+        "aliases": [
+          "new_gerber"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandNregions.py",
+        "aliases": [
+          "non_copper_regions",
+          "ncr"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandOffset.py",
+        "aliases": [
+          "offset"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandOpenDXF.py",
+        "aliases": [
+          "open_dxf"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandOpenExcellon.py",
+        "aliases": [
+          "open_excellon"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandOpenGCode.py",
+        "aliases": [
+          "open_gcode"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandOpenGerber.py",
+        "aliases": [
+          "open_gerber"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandOpenProject.py",
+        "aliases": [
+          "open_project"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandOpenSVG.py",
+        "aliases": [
+          "open_svg"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandOptions.py",
+        "aliases": [
+          "options"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandPaint.py",
+        "aliases": [
+          "paint"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandPanelize.py",
+        "aliases": [
+          "panelize",
+          "pan",
+          "panel"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandPlotAll.py",
+        "aliases": [
+          "plot_all"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandPlotObjects.py",
+        "aliases": [
+          "plot_objects"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandQuit.py",
+        "aliases": [
+          "quit_flatcam"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandSaveProject.py",
+        "aliases": [
+          "save_project"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandSaveSys.py",
+        "aliases": [
+          "save_sys",
+          "save"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandScale.py",
+        "aliases": [
+          "scale"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandSetActive.py",
+        "aliases": [
+          "set_active"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandSetOrigin.py",
+        "aliases": [
+          "set_origin",
+          "origin"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandSetPath.py",
+        "aliases": [
+          "set_path"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandSetSys.py",
+        "aliases": [
+          "set_sys",
+          "setsys"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandSkew.py",
+        "aliases": [
+          "skew"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandSubtractPoly.py",
+        "aliases": [
+          "subtract_poly"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandSubtractRectangle.py",
+        "aliases": [
+          "subtract_rectangle"
+        ],
+        "namePresentInFx": false
+      },
+      {
+        "file": "TclCommandVersion.py",
+        "aliases": [
+          "version"
+        ],
+        "namePresentInFx": true
+      },
+      {
+        "file": "TclCommandWriteGCode.py",
+        "aliases": [
+          "write_gcode"
+        ],
+        "namePresentInFx": true
+      }
+    ],
+    "comparisonNote": "Name inventory only; presence does not prove matching arguments, Tcl dialect or results. Terminal UI registrations included. Python clear has a differently named equivalent clear_shell; UI support is separate.",
+    "terminalUiCommands": [
+      "clear_shell",
+      "help",
+      "version"
+    ],
+    "pythonFamiliesCount": 66,
+    "pythonFamiliesWithMatchingName": 30,
+    "pythonFamiliesWithoutMatchingName": 36
+  },
+  "noGlobalParityPercent": true,
+  "validationMethod": "Read-only source/docs/history review, runtime command/default registration without executing commands or starting a UI, safe Python AST alias extraction. No full test rerun or new CAM benchmark.",
+  "alreadyImplemented": [
+    "Main Gerber/Excellon -> Geometry -> CNC workflow and panelization",
+    "24 main tool panels, with partial advanced options",
+    "FlatPrj read/write and real Python app round-trip on reference project",
+    "Tools Database editor and multiple CAM integrations",
+    "SVG/DXF import with documented subsets",
+    "20 legacy preprocessor ports including Paste_1, with partial advanced semantics",
+    "Recent files, PDF printing, code editor, Save/Save As, startup splash",
+    "PT-BR/EN/ES/FR, formatted tooltips, multiple themes",
+    "Prism GPU acceleration, density caches, viewport boundaries and presented-FPS measurements",
+    "Windows installers and MSI upgrade"
+  ],
+  "limits": [
+    "42 grouped work packages are not 42 bugs, nor a completeness percentage.",
+    "Historical inventory numbers and old future-step paragraphs may be superseded.",
+    "Some export refusals and route differences are deliberate; do not remove protections to increase a parity score.",
+    "A field-by-field audit of every Python tool/preference is itself a listed task.",
+    "No new feature implementation or release requested in this mapping."
+  ]
+}

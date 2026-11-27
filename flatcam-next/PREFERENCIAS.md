@@ -8,7 +8,7 @@ a 460 px. As páginas são criadas quando abertas e mantidas enquanto a aba exis
 
 | Categoria | Configurações já consumidas pelo FX |
 | --- | --- |
-| Geral | Português (Brasil)/English, quatro temas da interface e tela de abertura |
+| Geral | Português (Brasil)/English/Español/Français, quatro temas da interface e tela de abertura |
 | Unidades e precisão | Unidade inicial MM/IN e precisão independente das leituras MM/IN, aplicadas na próxima abertura |
 | Tamanhos de fonte | Interface, texto/código, números dos eixos e HUD; exemplos locais e aplicação na próxima abertura |
 | Plot Area | Grade, snap, passos X/Y vinculados ou independentes, eixos, HUD e referência A4 |
@@ -171,7 +171,7 @@ Comparação com `GeneralAppPrefGroupUI.py`, `GeneralAPPSetGroupUI.py` e
 
 | Área | Situação atual no FX |
 | --- | --- |
-| Idioma | Português (Brasil) e English; demais catálogos do Python pendentes. Veja [I18N.md](I18N.md). |
+| Idioma | Português (Brasil), English, Español e Français; demais catálogos do Python pendentes. Veja [I18N.md](I18N.md). |
 | Unidades/precisão globais | MM/IN inicial e casas 2–16 independentes nas leituras principais implementadas em 2026-10-28. Painéis especializados ainda têm formatos próprios; veja [GENERAL_NUMERIC_PREFERENCES.md](GENERAL_NUMERIC_PREFERENCES.md). |
 | Fontes da interface | Quatro tamanhos independentes implementados em 2026-10-28: interface, texto/código, eixos e HUD. Anotações CNC continuam separadas. Famílias não configuráveis; veja [FONT_PREFERENCES.md](FONT_PREFERENCES.md). |
 | Mouse/cursor | Snap, seleção, pan e cursores funcionam; faltam os controles gerais de forma/tamanho/espessura/cor e remapeamento de pan/seleção do Python. |

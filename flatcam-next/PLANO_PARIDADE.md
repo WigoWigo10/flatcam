@@ -4,6 +4,10 @@ Atualizado em **2026-10-05**. Base inicial: revisão `91d3ce50` do FX e o checko
 Python deste repositório. Este documento registra a sequência futura e as
 entregas explicitamente verificadas; não declara todas as etapas concluídas.
 
+**Inventário atual (18/11/2026):** ver
+[PENDENCIAS_ATUAIS_20261118.md](PENDENCIAS_ATUAIS_20261118.md). Este plano conserva
+o histórico; itens antigos de "próximo passo" podem já ter sido entregues.
+
 ## Objetivo e escopo
 
 Incremento 2026-10-07: Panelize recebeu prévia no estilo 2-Sided e conjunto

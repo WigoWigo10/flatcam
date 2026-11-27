@@ -1,5 +1,12 @@
 # Avaliação da arquitetura futura de renderização — FlatCAM FX
 
+**Inventário em 18/11/2026:** FPS apresentado já foi medido; ver
+[PLOT_PRESENTED_FPS.md](PLOT_PRESENTED_FPS.md) e
+[BENCHMARK_PC_ARC155H.md](BENCHMARK_PC_ARC155H.md). As pendências de medição
+nos parágrafos históricos abaixo pertencem às respectivas datas. O renderer
+GPU próprio continua sem adoção em produção; consultar o mapa atual em
+[PENDENCIAS_ATUAIS_20261118.md](PENDENCIAS_ATUAIS_20261118.md).
+
 ## Incremento em 2026-10-10
 
 Diagnóstico posterior isolou os corpos largos vetoriais CNC como primeiro alvo
