@@ -3,6 +3,9 @@ package org.flatcam.cam.excellon;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.LengthUnits;
+import org.flatcam.cam.ProgressCallback;
 import org.flatcam.cam.transform.TransformOp;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
@@ -12,8 +15,8 @@ import org.locationtech.jts.geom.Geometry;
  * Result of parsing one Excellon file: per-tool diameters, the individual
  * drill/slot hits (needed to generate G-code - see org.flatcam.cam.gcode),
  * and the combined solid geometry for display (drills as circles, slots as
- * round-capped capsules - see ExcellonParser). Units are "IN" or "MM" as
- * declared by the file (INCH/METRIC or M72/M71) - no unit conversion.
+ * round-capped capsules - see ExcellonParser). The parser preserves the file's
+ * units. Use {@link #convertedTo(String)} to express the same image in another unit.
  */
 public final class ExcellonImage {
 
@@ -112,23 +115,30 @@ public final class ExcellonImage {
     }
 
     /** Changes one tool's real diameter without reassigning hits or changing their centreline coordinates. */
-    public ExcellonImage withToolDiameter(int toolId, double diameter, org.flatcam.cam.CancellationToken cancellation,
-                                         org.flatcam.cam.ProgressCallback progress) {
+    public ExcellonImage withToolDiameter(int toolId, double diameter, CancellationToken cancellation,
+                                         ProgressCallback progress) {
         if (!toolDiameters.containsKey(toolId)) throw new IllegalArgumentException("Unknown Excellon tool: " + toolId);
         if (!Double.isFinite(diameter) || diameter <= 0) throw new IllegalArgumentException("Diameter must be positive and finite");
         cancellation.throwIfCancellationRequested();
         if (Double.compare(toolDiameters.get(toolId), diameter) == 0) return this;
         Map<Integer,Double> sizes = new java.util.LinkedHashMap<>(toolDiameters);
         sizes.put(toolId,diameter);
+        return new ExcellonImage(units, sizes, drills, slots,
+                drillFootprints(sizes, drills, slots, cancellation, progress));
+    }
+
+    private Geometry drillFootprints(Map<Integer, Double> sizes, List<Drill> drillHits, List<Slot> slotHits,
+                                    CancellationToken cancellation, ProgressCallback progress) {
         var factory = solidGeometry == null ? new org.locationtech.jts.geom.GeometryFactory() : solidGeometry.getFactory();
-        List<Geometry> shapes = new java.util.ArrayList<>(drills.size()+slots.size());
-        int total=drills.size()+slots.size(), completed=0;
-        for (var drill : drills) {
+        int total = drillHits.size() + slotHits.size();
+        List<Geometry> shapes = new java.util.ArrayList<>(total);
+        int completed = 0;
+        for (var drill : drillHits) {
             cancellation.throwIfCancellationRequested();
             shapes.add(factory.createPoint(new Coordinate(drill.x(),drill.y())).buffer(sizes.get(drill.toolId())/2,16));
             if (++completed % 128 == 0) progress.report((double)completed/Math.max(1,total));
         }
-        for (var slot : slots) {
+        for (var slot : slotHits) {
             cancellation.throwIfCancellationRequested();
             shapes.add(slot.centerline(factory).buffer(sizes.get(slot.toolId())/2,16));
             if (++completed % 128 == 0) progress.report((double)completed/Math.max(1,total));
@@ -136,11 +146,21 @@ public final class ExcellonImage {
         cancellation.throwIfCancellationRequested();
         var geometry=factory.buildGeometry(shapes);
         progress.report(1);
-        return new ExcellonImage(units,sizes,drills,slots,geometry);
+        return geometry;
     }
 
     public boolean isEmpty() {
         return solidGeometry == null || solidGeometry.isEmpty();
+    }
+
+    /** Changes the measurement unit of both the centres and their tool diameters. */
+    public ExcellonImage convertedTo(String targetUnits) {
+        if (units.equals(targetUnits)) return this;
+        double factor = LengthUnits.factor(units, targetUnits);
+        var scale = new TransformOp.Scale(factor, factor, new Coordinate(0, 0));
+        Map<Integer, Double> sizes = new java.util.LinkedHashMap<>();
+        toolDiameters.forEach((id, diameter) -> sizes.put(id, diameter * factor));
+        return transformedAffine(scale, targetUnits, sizes, false);
     }
 
     /**
@@ -159,12 +179,15 @@ public final class ExcellonImage {
                 if (!Double.isFinite(updated) || updated <= 0) throw new IllegalArgumentException("Buffer elimina o diametro da ferramenta Excellon " + id);
                 diameters.put(id,updated);
             });
-            var factory=solidGeometry == null ? new org.locationtech.jts.geom.GeometryFactory() : solidGeometry.getFactory();
-            List<Geometry> footprints = new java.util.ArrayList<>();
-            for (var drill : drills) footprints.add(factory.createPoint(new Coordinate(drill.x(),drill.y())).buffer(diameters.get(drill.toolId())/2,16));
-            for (var slot : slots) footprints.add(slot.centerline(factory).buffer(diameters.get(slot.toolId())/2,16));
-            return new ExcellonImage(units,diameters,drills,slots,factory.buildGeometry(footprints));
+            return new ExcellonImage(units, diameters, drills, slots,
+                    drillFootprints(diameters, drills, slots, CancellationToken.none(), ProgressCallback.none()));
         }
+        // Legacy XY scaling moves hole centres, while their physical cutters stay the same.
+        return transformedAffine(op, units, toolDiameters, op instanceof TransformOp.Scale);
+    }
+
+    private ExcellonImage transformedAffine(TransformOp op, String resultUnits, Map<Integer, Double> sizes,
+                                            boolean keepPhysicalDiameters) {
         List<Drill> newDrills = drills.stream()
                 .map(drill -> {
                     Coordinate p = op.apply(new Coordinate(drill.x(), drill.y()));
@@ -172,8 +195,10 @@ public final class ExcellonImage {
                 })
                 .toList();
         List<Slot> newSlots = slots.stream().map(slot -> slot.transformed(op)).toList();
-        return new ExcellonImage(units, toolDiameters, newDrills, newSlots,
-                solidGeometry == null ? null : op.apply(solidGeometry));
+        Geometry footprint = keepPhysicalDiameters && (!newDrills.isEmpty() || !newSlots.isEmpty())
+                ? drillFootprints(sizes, newDrills, newSlots, CancellationToken.none(), ProgressCallback.none())
+                : solidGeometry == null ? null : op.apply(solidGeometry);
+        return new ExcellonImage(resultUnits, sizes, newDrills, newSlots, footprint);
     }
 
     /** {@code [minX, minY, maxX, maxY]} of the actual hole geometry (buffered by tool radius), or null if empty. */

@@ -46,6 +46,29 @@ class ExcellonImageTransformTest {
     }
 
     @Test
+    void scalingHolePositionsKeepsTheirPhysicalDiameterInThePlot() {
+        ExcellonImage image = parse("M48", "METRIC", "T1C1.0", "%", "T1", "X3.0Y4.0", "M30");
+        ExcellonImage scaled = image.transformed(new TransformOp.Scale(2, 3, new Coordinate(0, 0)));
+        assertEquals(new ExcellonImage.Drill(1, 6, 12), scaled.drills().getFirst());
+        assertEquals(1.0, scaled.toolDiameters().get(1), 1e-9);
+        var footprint = scaled.solidGeometry().getEnvelopeInternal();
+        assertEquals(1.0, footprint.getWidth(), 1e-9);
+        assertEquals(1.0, footprint.getHeight(), 1e-9);
+    }
+
+    @Test
+    void convertingUnitsScalesTheSlotCentresAndToolDiameterTogether() {
+        ExcellonImage image = parse("M48", "INCH", "T1C0.0315", "%", "T1", "X1.0Y2.0G85X2.0Y2.0", "M30");
+        ExcellonImage mm = image.convertedTo("MM");
+        assertEquals("MM", mm.units());
+        assertEquals(0.8001, mm.toolDiameters().get(1), 1e-9);
+        assertEquals(25.4, mm.slots().getFirst().x1(), 1e-9);
+        assertEquals(50.8, mm.slots().getFirst().x2(), 1e-9);
+        assertEquals(0.8001, mm.solidGeometry().getEnvelopeInternal().getHeight(), 1e-9);
+        assertEquals(0.0315, mm.convertedTo("IN").toolDiameters().get(1), 1e-9);
+    }
+
+    @Test
     void originalImageIsNeverMutated() {
         ExcellonImage image = parse("M48", "METRIC", "T1C1.0", "%", "T1", "X3.0Y4.0", "M30");
         image.transformed(new TransformOp.Offset(100, 100));

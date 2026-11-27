@@ -1519,6 +1519,44 @@ class TclLiveHostTest {
         assertArrayEquals(original, Files.readAllBytes(input)); assertNoExcellonStages(directory);
     }
 
+    @Test void mixedGerberAndExcellonImportsUseOneWorkspaceUnitForPlotAndDrilling(@TempDir Path directory) throws Exception {
+        Path copper = directory.resolve("copper.gbr");
+        Files.writeString(copper, "%FSLAX24Y24*%\n%MOMM*%\n%ADD10C,2.54*%\nD10*\nX254000Y-508000D03*\nM02*\n");
+        Path drill = directory.resolve("holes.drl");
+        Files.writeString(drill, "M48\nINCH\nT1C0.0315\n%\nG90\nG05\nT1\nX1.0Y-2.0\nM30\n");
+        for (boolean copperFirst : List.of(true, false)) {
+            try (Session session = new Session()) {
+                if (copperFirst) {
+                    session.host.openGerber(copper, "copper");
+                    session.host.openExcellon(drill, "holes");
+                } else {
+                    session.host.openExcellon(drill, "holes");
+                    session.host.openGerber(copper, "copper");
+                }
+                var holes = (ExcellonImage) version(session, "holes");
+                var layer = (org.flatcam.cam.gerber.GerberImage) version(session, "copper");
+                String units = copperFirst ? "MM" : "IN";
+                double factor = copperFirst ? 25.4 : 1;
+                assertEquals(units, holes.units());
+                assertEquals(units, layer.units());
+                assertEquals(copperFirst, TerminalPanelTest.fx(session.host::displayUnitsMetric));
+                var center = holes.drills().getFirst();
+                var copperCenter = layer.solidGeometry().getEnvelopeInternal().centre();
+                assertEquals(factor, center.x(), 1e-9);
+                assertEquals(-2 * factor, center.y(), 1e-9);
+                assertEquals(copperCenter.x, center.x(), 1e-9);
+                assertEquals(copperCenter.y, center.y(), 1e-9);
+                assertEquals(0.0315 * factor, holes.toolDiameters().get(1), 1e-12);
+                assertEquals(0.0315 * factor, holes.solidGeometry().getEnvelopeInternal().getWidth(), 1e-9);
+                assertEquals(copperFirst ? 2.54 : .1, layer.apertures().get("10").width, 1e-12);
+                String gcode = org.flatcam.cam.gcode.GCodeGenerator.generateDrillGCode(holes,
+                        new org.flatcam.cam.gcode.DrillGCodeParameters(.1, .05, 10, 1000, false));
+                assertTrue(gcode.contains(copperFirst ? "G21" : "G20"));
+                assertTrue(gcode.contains(copperFirst ? "X25.4000 Y-50.8000" : "X1.000000 Y-2.000000"), gcode);
+            }
+        }
+    }
+
     @Test void excellonExportSupportsInchImagesWithoutChangingTheirUnits(@TempDir Path directory) throws Exception {
         Path input = directory.resolve("inch.drl"), output = directory.resolve("export.drl");
         Files.writeString(input, "M48\nINCH\nT42C0.03125\n%\nT42\nX1.0Y-2.0\nX0.1Y0.2G85X0.4Y0.2\nM30\n");

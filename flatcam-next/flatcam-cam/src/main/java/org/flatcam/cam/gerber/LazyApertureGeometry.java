@@ -7,6 +7,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import org.flatcam.cam.transform.TransformOp;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 
@@ -22,6 +23,12 @@ public final class LazyApertureGeometry extends AbstractMap<String, Geometry> {
 
     public LazyApertureGeometry(Map<String, List<Geometry>> pieces) {
         this.pieces = new LinkedHashMap<>(pieces);
+    }
+
+    LazyApertureGeometry scaled(TransformOp.Scale scale) {
+        Map<String, List<Geometry>> transformed = new LinkedHashMap<>();
+        pieces.forEach((key, shapes) -> transformed.put(key, shapes.stream().map(scale::apply).toList()));
+        return new LazyApertureGeometry(transformed);
     }
 
     @Override

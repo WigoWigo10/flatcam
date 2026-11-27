@@ -322,6 +322,10 @@ final class PaintToolPanel {
         rest.setTooltip(tooltip(I18n.text("ui.9d7de9524372")));
         order.disableProperty().bind(rest.selectedProperty());
         TableView<ToolRow> toolTable = new TableView<>(); toolTable.setId("paint-tools");
+        toolTable.getSelectionModel().setSelectionMode(javafx.scene.control.SelectionMode.MULTIPLE);
+        CheckBox selectedOnly = new CheckBox(I18n.text("paint.tools.selectedOnly"));
+        selectedOnly.setId("paint-selected-tools-only");
+        ToolDescriptions.apply(selectedOnly, I18n.text("paint.tools.selectedOnly"), I18n.text("paint.tools.selectedOnly.help"));
         toolTable.setMinWidth(0); toolTable.setPrefHeight(130);
         toolTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         TableColumn<ToolRow, Double> diameterColumn = new TableColumn<>(I18n.text("ui.7cd23abc62e0"));
@@ -360,9 +364,16 @@ final class PaintToolPanel {
             var updated = values.stream().map(value -> existing.getOrDefault(value, new ToolRow(value, capture.get()))).toList();
             syncing[0] = true;
             try {
-                toolTable.getItems().setAll(updated);
-                if (!updated.contains(editing[0])) editing[0] = updated.getFirst();
-                toolTable.getSelectionModel().select(editing[0]); restore.accept(editing[0].settings);
+                if (!toolTable.getItems().equals(updated)) {
+                    var selected = List.copyOf(toolTable.getSelectionModel().getSelectedItems());
+                    toolTable.getItems().setAll(updated);
+                    var selection = toolTable.getSelectionModel();
+                    selection.clearSelection();
+                    for (ToolRow row : updated) if (selected.contains(row)) selection.select(row);
+                    if (!updated.contains(editing[0])) editing[0] = updated.getFirst();
+                    if (!selected.isEmpty() && selection.isEmpty()) selection.select(editing[0]);
+                }
+                restore.accept(editing[0].settings);
                 parameterTitle.setText(I18n.text("ui.1228ea6a807e") + editing[0].diameter);
             } finally { syncing[0] = false; }
         };
@@ -371,7 +382,9 @@ final class PaintToolPanel {
         removeTool.setMaxWidth(Double.MAX_VALUE);
         removeTool.disableProperty().bind(javafx.beans.binding.Bindings.isEmpty(toolTable.getSelectionModel().getSelectedItems()));
         removeTool.setOnAction(event -> {
-            if (toolTable.getItems().size() <= 1) { errorLabel.setText(I18n.text("ui.5ac0e86bc232")); return; }
+            if (toolTable.getItems().size() <= toolTable.getSelectionModel().getSelectedItems().size()) {
+                errorLabel.setText(I18n.text("ui.5ac0e86bc232")); return;
+            }
             editing[0].settings = capture.get(); syncing[0] = true;
             try {
                 TableKeyboardActions.removeSelected(toolTable);
@@ -400,7 +413,8 @@ final class PaintToolPanel {
                 diameters.setText(values.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining("; ")));
                 synchronizeTools.run();
             }
-            toolTable.getSelectionModel().select(toolTable.getItems().stream().filter(row -> row.diameter == diameter).findFirst().orElseThrow());
+            var importedRow = toolTable.getItems().stream().filter(row -> row.diameter == diameter).findFirst().orElseThrow();
+            toolTable.getSelectionModel().clearAndSelect(toolTable.getItems().indexOf(importedRow));
             overlap.setText(Double.toString(p.overlapFraction() * 100)); margin.setText(Double.toString(p.offset()));
             method.setValue(p.method()); connect.setSelected(p.connect()); contour.setSelected(p.contour());
             Double importedAngle = p.settingsFor(diameter).lineAngleDegrees();
@@ -438,8 +452,12 @@ final class PaintToolPanel {
                             : I18n.text("ui.410a190f7174"));
                 }
                 synchronizeTools.run();
+                List<ToolRow> active = selectedOnly.isSelected()
+                        ? toolTable.getItems().stream().filter(toolTable.getSelectionModel().getSelectedItems()::contains).toList()
+                        : List.copyOf(toolTable.getItems());
+                if (active.isEmpty()) throw new IllegalArgumentException(I18n.text("ui.2244c551a96a"));
                 java.util.Map<Double, PaintToolSettings> settings = new java.util.LinkedHashMap<>();
-                for (ToolRow row : toolTable.getItems()) {
+                for (ToolRow row : active) {
                     double diameter = row.diameter; String[] s = row.settings;
                     try { settings.put(diameter,new PaintToolSettings(Double.parseDouble(s[0].trim().replace(',','.'))/100,
                             Double.parseDouble(s[1].trim().replace(',','.')), NccMethod.valueOf(s[2]),
@@ -448,9 +466,11 @@ final class PaintToolPanel {
                                     ? RasterAngleInput.value(s.length <= 5 || Boolean.parseBoolean(s[5]), s.length <= 6 ? "0" : s[6]) : null)); }
                     catch (RuntimeException invalid) { throw new IllegalArgumentException(I18n.text("ui.10f99bd620cc") + diameter + ": " + invalid.getMessage()); }
                 }
-                PaintParameters parameters = new PaintParameters(toolTable.getItems().stream().map(row -> row.diameter).toList(),
-                        number(overlap, I18n.text("ui.ed0baca2b3b3")) / 100.0, number(margin, I18n.text("ui.c707749bff8f")), method.getValue(),
-                        connect.isSelected(), contour.isSelected(), order.getValue(), rest.isSelected(), settings);
+                PaintToolSettings base = selectedOnly.isSelected() ? settings.get(active.getFirst().diameter)
+                        : settings.get(editing[0].diameter);
+                PaintParameters parameters = new PaintParameters(active.stream().map(row -> row.diameter).toList(),
+                        base.overlapFraction(), base.offset(), base.method(),
+                        base.connect(), base.contour(), order.getValue(), rest.isSelected(), settings);
                 stopPicking.run();
                 errorLabel.setText("");
                 if(previewOnly) {
@@ -489,7 +509,8 @@ final class PaintToolPanel {
                 new VBox(4, all, single, rectangle, polygonArea, reference), referenceObject,
                 new HBox(6, choose, clear), selectedLabel,
                 new Separator(),
-                new Label(I18n.text("ui.87aaa7e961d0")), new HBox(6,diameters,updateTools), toolTable, removeTool, database, transferNote, parameterTitle,
+                new Label(I18n.text("ui.87aaa7e961d0")), new HBox(6,diameters,updateTools), toolTable, selectedOnly,
+                removeTool, database, transferNote, parameterTitle,
                 new HBox(6, new Label(I18n.text("ui.ea6b271e4830")), overlap, new Label(I18n.text("ui.16bab5b0d1de")), margin),
                 new HBox(6, new Label("Metodo:"), method),
                 angle,
@@ -539,6 +560,10 @@ final class PaintToolPanel {
                 connect.selectedProperty(),contour.selectedProperty(),rest.selectedProperty(),order.valueProperty(),angle.automatic.selectedProperty(),angle.degrees.textProperty()))
             property.addListener((obs,old,next)->invalidatePreview.run());
         toolTable.getItems().addListener((javafx.collections.ListChangeListener<ToolRow>)change->invalidatePreview.run());
+        selectedOnly.selectedProperty().addListener((o,a,b)->invalidatePreview.run());
+        toolTable.getSelectionModel().getSelectedItems().addListener((javafx.collections.ListChangeListener<ToolRow>) change -> {
+            if (selectedOnly.isSelected()) invalidatePreview.run();
+        });
         toolTable.editingCellProperty().addListener((o,a,b)->invalidatePreview.run());
         return panel;
     }
@@ -563,14 +588,6 @@ final class PaintToolPanel {
             showSelection.run();
             pickNext(host, candidates, chosen, showSelection, errorLabel);
         });
-    }
-
-    private static double number(TextField field, String name) {
-        try {
-            return Double.parseDouble(field.getText().trim().replace(',', '.'));
-        } catch (NumberFormatException invalid) {
-            throw new IllegalArgumentException(I18n.text("ui.1cbfa91d7a0c") + name.toLowerCase(Locale.ROOT));
-        }
     }
 
     private static Tooltip tooltip(String text) {

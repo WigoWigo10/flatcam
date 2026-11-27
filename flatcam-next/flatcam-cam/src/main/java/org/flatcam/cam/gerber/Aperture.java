@@ -21,9 +21,15 @@ public final class Aperture {
     private final double polygonRotation;
     private final ApertureMacro macro;
     private final double[] macroModifiers;
+    private final double macroScale;
 
     private Aperture(ApertureKind kind, double width, double height, int polygonVertices,
                      double polygonRotation, ApertureMacro macro, double[] macroModifiers) {
+        this(kind, width, height, polygonVertices, polygonRotation, macro, macroModifiers, 1);
+    }
+
+    private Aperture(ApertureKind kind, double width, double height, int polygonVertices,
+                     double polygonRotation, ApertureMacro macro, double[] macroModifiers, double macroScale) {
         this.kind = kind;
         this.width = width;
         this.height = height;
@@ -31,6 +37,12 @@ public final class Aperture {
         this.polygonRotation = polygonRotation;
         this.macro = macro;
         this.macroModifiers = macroModifiers;
+        this.macroScale = macroScale;
+    }
+
+    Aperture convertedBy(double factor) {
+        return new Aperture(kind, width * factor, height * factor, polygonVertices, polygonRotation,
+                macro, macroModifiers, macroScale * factor);
     }
 
     public static Aperture circle(double diameter) {
@@ -95,6 +107,9 @@ public final class Aperture {
             case POLYGON -> polygonAt(x, y, geometryFactory);
             case MACRO -> {
                 Geometry shape = macro.evaluate(macroModifiers, geometryFactory);
+                // Macro operands can also be angles or counts. Scale the evaluated footprint.
+                if (macroScale != 1)
+                    shape = AffineTransformation.scaleInstance(macroScale, macroScale).transform(shape);
                 Geometry moved = AffineTransformation.translationInstance(x, y).transform(shape);
                 yield moved;
             }

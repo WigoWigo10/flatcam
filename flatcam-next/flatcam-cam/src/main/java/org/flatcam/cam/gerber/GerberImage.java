@@ -5,8 +5,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import org.flatcam.cam.CancellationToken;
+import org.flatcam.cam.LengthUnits;
 import org.flatcam.cam.ProgressCallback;
 import org.flatcam.cam.transform.TransformOp;
+import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.Envelope;
 import org.locationtech.jts.geom.Geometry;
 import org.locationtech.jts.geom.GeometryFactory;
@@ -20,7 +22,7 @@ import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
  * and each aperture's own shapes (every flash/stroke that used it, unioned,
  * regardless of polarity) for the apertures table's "Mark" highlight - see
  * GerberParser's class doc. Units are always inches or millimeters as declared
- * by the file's %MO - no unit conversion is performed.
+ * by the file's %MO until the image is explicitly converted.
  */
 public final class GerberImage {
 
@@ -101,23 +103,49 @@ public final class GerberImage {
      * A copy with {@code op} applied to every geometry this object carries
      * (solid, follow, and each aperture's own shapes) - appTools/ToolTransform.py's
      * six operations applied to a Gerber via {@code Gerber.rotate/mirror/skew/scale/offset}.
-     * Aperture width/height/diameter fields are intentionally left untouched:
-     * they only feed the apertures table's display, not any CAM calculation
-     * (which reads {@link #solidGeometry()}/{@link #apertureGeometry()}
-     * directly), so leaving them stale after a transform is a deliberate v1
-     * simplification rather than a correctness gap.
+     * A uniform scale also resizes the aperture definitions used for new
+     * flashes and size checks. Other transforms act on the existing shapes.
      */
     public GerberImage transformed(TransformOp op) {
+        if (op instanceof TransformOp.Scale scale) {
+            double x = Math.abs(scale.xFactor()), y = Math.abs(scale.yFactor());
+            if (x == y && x > 0 && Double.isFinite(x) && x != 1)
+                return transformed(scale, units, scaledApertures(x), true);
+        }
+        return transformed(op, units, apertures, false);
+    }
+
+    /** Changes the measurement unit of all the geometries and aperture footprints. */
+    public GerberImage convertedTo(String targetUnits) {
+        if (units.equals(targetUnits)) return this;
+        double factor = LengthUnits.factor(units, targetUnits);
+        var scale = new TransformOp.Scale(factor, factor, new Coordinate(0, 0));
+        return transformed(scale, targetUnits, scaledApertures(factor), true);
+    }
+
+    private Map<String, Aperture> scaledApertures(double factor) {
+        Map<String, Aperture> result = new LinkedHashMap<>();
+        apertures.forEach((code, aperture) -> result.put(code, aperture.convertedBy(factor)));
+        return result;
+    }
+
+    private GerberImage transformed(TransformOp op, String resultUnits, Map<String, Aperture> resultApertures,
+                                    boolean preserveLazyApertures) {
         Map<String, Geometry> newApertureGeometry = new LinkedHashMap<>();
-        for (Map.Entry<String, Geometry> entry : apertureGeometry.entrySet()) {
-            newApertureGeometry.put(entry.getKey(), op.apply(entry.getValue()));
+        if (preserveLazyApertures && op instanceof TransformOp.Scale scale
+                && apertureGeometry instanceof LazyApertureGeometry lazy) {
+            newApertureGeometry = lazy.scaled(scale);
+        } else {
+            for (Map.Entry<String, Geometry> entry : apertureGeometry.entrySet()) {
+                newApertureGeometry.put(entry.getKey(), op.apply(entry.getValue()));
+            }
         }
         List<GerberShape> newShapes = new ArrayList<>(shapes.size());
         for (GerberShape shape : shapes) {
             newShapes.add(new GerberShape(shape.apertureCode(), op.apply(shape.geometry()), shape.clear(),
                     shape.followGeometry() == null ? null : op instanceof TransformOp.Buffer ? shape.followGeometry() : op.apply(shape.followGeometry())));
         }
-        return new GerberImage(units, apertures,
+        return new GerberImage(resultUnits, resultApertures,
                 solidGeometry == null ? null : op.apply(solidGeometry),
                 followGeometry == null ? null : op instanceof TransformOp.Buffer ? followGeometry : op.apply(followGeometry),
                 newApertureGeometry, newShapes);

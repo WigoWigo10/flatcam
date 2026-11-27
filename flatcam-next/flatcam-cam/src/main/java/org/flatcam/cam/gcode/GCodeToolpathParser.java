@@ -445,7 +445,7 @@ public final class GCodeToolpathParser {
         boolean absolute = true;
         boolean absoluteArcCenter = false;
         boolean metric = true;
-        Boolean lastMetric = null;
+        boolean haveCoordinates = false;
         boolean havePosition = false;
         int motion = -1;
         double x = 0;
@@ -575,17 +575,15 @@ public final class GCodeToolpathParser {
                         } else if (code >= 0 && code <= 3) {
                             motion = code;
                         } else if (code == 20) {
+                            if (metric && haveCoordinates) {
+                                warning = "Troca de unidades no mesmo programa: pre-visualizacao indisponivel.";
+                            }
                             metric = false;
-                            if (lastMetric != null && lastMetric && havePosition) {
-                                warning = "Troca de unidades no mesmo programa: pre-visualizacao indisponivel.";
-                            }
-                            lastMetric = false;
                         } else if (code == 21 || (code == 71 && iselProfile)) {
-                            metric = true;
-                            if (lastMetric != null && !lastMetric && havePosition) {
+                            if (!metric && haveCoordinates) {
                                 warning = "Troca de unidades no mesmo programa: pre-visualizacao indisponivel.";
                             }
-                            lastMetric = true;
+                            metric = true;
                         } else if (code == 90) {
                             absolute = true;
                         } else if (code == 91) {
@@ -733,6 +731,7 @@ public final class GCodeToolpathParser {
             y = nextY;
             z = nextZ;
             havePosition |= movesXY;
+            haveCoordinates |= movesXY || newZ != null;
         }
         cancellation.throwIfCancellationRequested();
         progress.report(0.95);

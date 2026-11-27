@@ -47,6 +47,12 @@ O carregamento pelo próprio Terminal não cancela o script: é possível usar
 Aberturas pelo menu continuam cancelando um script que esteja trabalhando no
 projeto anterior. Avisos e limites da importação Python não foram removidos.
 
+Em um projeto vazio, `open_gerber` e `open_excellon` adotam a unidade do
+primeiro arquivo. Se já há objetos, as novas importações Gerber/Excellon usam
+a unidade do Plot. A conversão inclui aberturas Gerber, posições, rasgos e
+diâmetros Excellon. O comando `scale` do Excellon muda as posições dos
+furos e os trajetos dos rasgos, mantendo os diâmetros físicos.
+
 ## Salvar projeto
 
 ```tcl

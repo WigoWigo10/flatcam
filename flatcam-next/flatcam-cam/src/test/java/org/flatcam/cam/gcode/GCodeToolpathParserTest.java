@@ -20,6 +20,17 @@ class GCodeToolpathParserTest {
     private static final GeometryFactory FACTORY = new GeometryFactory();
 
     @Test
+    void rejectsAnInchSwitchAfterImplicitMetricCoordinates() {
+        String program = "G90\nG0 Z2\nG0 X25.4 Y0\nG20\nG1 X2 Y0\n";
+        var parsed = GCodeToolpathParser.parse(program, () -> false, fraction -> {});
+        assertFalse(parsed.plotAvailable());
+        assertTrue(parsed.warning().contains("Troca de unidades"), parsed.warning());
+        var inch = GCodeToolpathParser.parse("G20\nG90\nG0 Z2\nG0 X1 Y0\nG1 X2 Y0\n", () -> false, fraction -> {});
+        assertTrue(inch.plotAvailable());
+        assertEquals("IN", inch.units());
+    }
+
+    @Test
     void parsesGeneratedStyleRapidCutAndDrillWithProgress() {
         List<Double> progress = new ArrayList<>();
         GCodeToolpathParser.Result result = GCodeToolpathParser.parse("""

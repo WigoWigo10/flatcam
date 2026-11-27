@@ -56,8 +56,6 @@ final class DoubleSidedToolPanel {
         /** {xmin, ymin, xmax, ymax} of an object, or null when it has no geometry. */
         double[] bounds(TreeItem<String> item);
 
-        String units(TreeItem<String> item);
-
         /** The filled shapes of an object (copper, drills, paths), or null. */
         Geometry content(TreeItem<String> item);
 
@@ -143,7 +141,7 @@ final class DoubleSidedToolPanel {
         };
     }
 
-    static Node build(Host host, Runnable onClose) {
+    static Node build(String units, Host host, Runnable onClose) {
         // --- objects to mirror ---
         ListView<TreeItem<String>> objectList = new ListView<>();
         objectList.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
@@ -259,8 +257,9 @@ final class DoubleSidedToolPanel {
         errorLabel.setWrapText(true);
 
         // --- alignment holes ---
-        TextField diameter = new TextField(ToolDefaults.text("twosided.drilldia")); // Python's tools_2sided_drilldia default
+        TextField diameter = new TextField(ToolDefaults.text("twosided.drilldia", "MM".equals(units)));
         diameter.setPrefColumnCount(6);
+        ToolDescriptions.apply(diameter, I18n.text("ui.a960ba09fea0"), I18n.text("ui.9edf8d93ddcb"));
         TextArea holesText = new TextArea();
         ToolDescriptions.apply(holesText,I18n.text("ui.51f8a511476e"), I18n.text("ui.74b88ad14102"));
         // The prompt text of a TextArea is too dim in some themes; a normal label is always readable.
@@ -399,7 +398,6 @@ final class DoubleSidedToolPanel {
                 if (size <= 0) {
                     throw new IllegalArgumentException(I18n.text("ui.f787e8eb9a03"));
                 }
-                String units = unitsFor(host, boxObject.getValue(), chosen.get());
                 host.createAlignmentDrills(units, size, holes, operation.get());
                 host.preview(null, null, null, null, null);
                 errorLabel.setText("");
@@ -428,7 +426,7 @@ final class DoubleSidedToolPanel {
                 asCopy, showPreview, showContent, showBoardOutline, fillInterior, mirrorButton,
                 new Separator(),
                 new Label(I18n.text("ui.c9ca5c1a9ebd")),
-                new HBox(6, new Label(I18n.text("ui.56d3a428a0c7")), diameter),
+                new HBox(6, new Label(I18n.text("ui.56d3a428a0c7") + " [" + units.toLowerCase(Locale.ROOT) + "]"), diameter),
                 holesHint, holesText, new HBox(6, pickHole, clearHoles), snapToDrills, createHoles,
                 errorLabel, close);
         panel.setPadding(new Insets(6));
@@ -456,19 +454,6 @@ final class DoubleSidedToolPanel {
                     Math.max(total[2], box[2]), Math.max(total[3], box[3])};
         }
         return total;
-    }
-
-    private static String unitsFor(Host host, Object reference, List<TreeItem<String>> items) {
-        if (reference instanceof TreeItem<?> item) {
-            @SuppressWarnings("unchecked")
-            TreeItem<String> typed = (TreeItem<String>) item;
-            return host.units(typed);
-        }
-        if (!items.isEmpty()) {
-            return host.units(items.get(0));
-        }
-        List<TreeItem<String>> all = host.objects();
-        return all.isEmpty() ? "MM" : host.units(all.get(0));
     }
 
     /** The mirror line, the mirrored outlines of the objects and the alignment holes with their mirrors. */

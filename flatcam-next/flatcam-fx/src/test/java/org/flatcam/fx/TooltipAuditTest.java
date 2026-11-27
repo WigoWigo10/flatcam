@@ -22,16 +22,20 @@ import org.junit.jupiter.api.condition.OS;
 
 /** Inventory of real panel controls (never skin nodes), reproducible without opening a user window. */
 class TooltipAuditTest {
-    private record Panel(Class<?> type, String context) { }
+    private record Panel(Class<?> type, String context, String units) {
+        Panel(Class<?> type, String context) {
+            this(type, context, null);
+        }
+    }
     private static final List<Panel> PANELS = List.of(
         new Panel(AlignObjectsToolPanel.class,"Align Objects Tool"), new Panel(CalibrationToolPanel.class,"Calibration Tool"),
         new Panel(CopperThievingToolPanel.class,"Copper Thieving Tool"), new Panel(CornerMarkersToolPanel.class,"Corner Markers Tool"),
-        new Panel(DoubleSidedToolPanel.class,"2-Sided Tool"), new Panel(EtchCompensationToolPanel.class,"Etch Compensation Tool"),
+        new Panel(DoubleSidedToolPanel.class,"2-Sided Tool","MM"), new Panel(EtchCompensationToolPanel.class,"Etch Compensation Tool"),
         new Panel(ExtractDrillsToolPanel.class,"Extract Drills Tool"), new Panel(FiducialsToolPanel.class,"Fiducials Tool"),
         new Panel(FilmToolPanel.class,"Film Tool"), new Panel(InvertGerberToolPanel.class,"Invert Gerber Tool"),
         new Panel(OptimalToolPanel.class,"Optimal Tool"), new Panel(PanelizeToolPanel.class,"Panelize Tool"),
         new Panel(PaintToolPanel.class,"Paint Tool"), new Panel(PunchGerberToolPanel.class,"Punch Gerber Tool"),
-        new Panel(RulesCheckToolPanel.class,"Rules Check Tool"), new Panel(SolderPasteToolPanel.class,"SolderPaste Tool"),
+        new Panel(RulesCheckToolPanel.class,"Rules Check Tool","MM"), new Panel(SolderPasteToolPanel.class,"SolderPaste Tool"),
         new Panel(QrCodeToolPanel.class,"QRCode Tool"), new Panel(SubtractToolPanel.class,"Subtract Tool"));
 
     @Test @EnabledOnOs(OS.WINDOWS)
@@ -53,7 +57,11 @@ class TooltipAuditTest {
                     if (method.getReturnType() == String.class) return "MM";
                     return null;
                 });
-                Node root = (Node)panel.type.getDeclaredMethod("build",host,Runnable.class).invoke(null,stub,(Runnable)() -> {});
+                Runnable onClose = () -> {};
+                Node root = panel.units == null
+                        ? (Node) panel.type.getDeclaredMethod("build", host, Runnable.class).invoke(null, stub, onClose)
+                        : (Node) panel.type.getDeclaredMethod("build", String.class, host, Runnable.class)
+                                .invoke(null, panel.units, stub, onClose);
                 roots.put(panel.context,root);
             }
             var geometry = new org.locationtech.jts.geom.GeometryFactory().createPolygon(new org.locationtech.jts.geom.Coordinate[]{

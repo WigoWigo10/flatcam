@@ -90,6 +90,30 @@ public final class RulesCheck {
     public record Board(Named<GerberImage> copperTop, Named<GerberImage> copperBottom, Named<GerberImage> silkTop,
                         Named<GerberImage> silkBottom, Named<GerberImage> maskTop, Named<GerberImage> maskBottom,
                         Named<GerberImage> outline, Named<ExcellonImage> drills1, Named<ExcellonImage> drills2) {
+        private String referenceUnits() {
+            for (var layer : java.util.Arrays.asList(copperTop, copperBottom, silkTop, silkBottom, maskTop, maskBottom, outline)) {
+                if (layer != null && layer.image() != null) return layer.image().units();
+            }
+            for (var layer : java.util.Arrays.asList(drills1, drills2)) {
+                if (layer != null && layer.image() != null) return layer.image().units();
+            }
+            return "MM";
+        }
+
+        private Board inUnits(String units) {
+            return new Board(gerberInUnits(copperTop, units), gerberInUnits(copperBottom, units),
+                    gerberInUnits(silkTop, units), gerberInUnits(silkBottom, units),
+                    gerberInUnits(maskTop, units), gerberInUnits(maskBottom, units), gerberInUnits(outline, units),
+                    drillsInUnits(drills1, units), drillsInUnits(drills2, units));
+        }
+
+        private static Named<GerberImage> gerberInUnits(Named<GerberImage> layer, String units) {
+            return layer == null || layer.image() == null ? layer : new Named<>(layer.name(), layer.image().convertedTo(units));
+        }
+
+        private static Named<ExcellonImage> drillsInUnits(Named<ExcellonImage> layer, String units) {
+            return layer == null || layer.image() == null ? layer : new Named<>(layer.name(), layer.image().convertedTo(units));
+        }
     }
 
     /**
@@ -120,6 +144,14 @@ public final class RulesCheck {
 
     public static List<RuleResult> check(Board board, Map<Rule, Setting> settings, CancellationToken cancellation,
                                          ProgressCallback progress) {
+        return check(board, settings, board.referenceUnits(), cancellation, progress);
+    }
+
+    /** Limits and returned locations are expressed in the supplied unit. */
+    public static List<RuleResult> check(Board board, Map<Rule, Setting> settings, String units,
+                                         CancellationToken cancellation, ProgressCallback progress) {
+        cancellation.throwIfCancellationRequested();
+        board = board.inUnits(units);
         List<RuleResult> results = new ArrayList<>();
         int total = (int) settings.values().stream().filter(Setting::enabled).count();
         int done = 0;

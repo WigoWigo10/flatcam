@@ -49,6 +49,17 @@ class GerberImageTransformTest {
     }
 
     @Test
+    void uniformScaleUpdatesTheApertureUsedForNewFlashes() {
+        var scaled = rectangleAtOrigin.transformed(new TransformOp.Scale(2, 2, new Coordinate()));
+        var aperture = scaled.apertures().get("10");
+        assertEquals(4, aperture.width, 1e-9);
+        assertEquals(2, aperture.height, 1e-9);
+        var flash = aperture.footprintAt(0, 0, scaled.solidGeometry().getFactory());
+        assertEquals(scaled.solidGeometry().getEnvelopeInternal(), flash.getEnvelopeInternal());
+        assertEquals(2, rectangleAtOrigin.apertures().get("10").width, 1e-9);
+    }
+
+    @Test
     void originalImageIsNeverMutated() {
         Envelope before = rectangleAtOrigin.solidGeometry().getEnvelopeInternal();
         rectangleAtOrigin.transformed(new TransformOp.Offset(100, 100));

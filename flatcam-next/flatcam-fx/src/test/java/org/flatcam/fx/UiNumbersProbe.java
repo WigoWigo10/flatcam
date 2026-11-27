@@ -63,6 +63,8 @@ public final class UiNumbersProbe {
                                 apertureTable.getColumns().get(4).getCellData(0));
                         assertEquals(1.23456789,aperture.width);
                     }
+                    var clear=MainWindow.class.getDeclaredMethod("clearProject",boolean.class);
+                    clear.setAccessible(true); clear.invoke(window,false);
                     return null;
                 });
                 Path source=output.resolve("input.drl");

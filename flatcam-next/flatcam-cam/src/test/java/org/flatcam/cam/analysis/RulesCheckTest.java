@@ -27,6 +27,20 @@ import org.junit.jupiter.api.io.TempDir;
 
 class RulesCheckTest {
 
+    @Test
+    void mixedExcellonUnitsUseOnePhysicalClearance() {
+        var parser = new org.flatcam.cam.excellon.ExcellonParser();
+        var mm = parser.parse(List.of("M48", "METRIC", "T1C1.016", "%", "T1", "X25.4Y0.0", "M30"));
+        var inch = parser.parse(List.of("M48", "INCH", "T1C0.04", "%", "T1", "X1.044Y0.0", "M30"));
+        var board = new RulesCheck.Board(null, null, null, null, null, null, null,
+                new Named<>("mm", mm), new Named<>("inch", inch));
+        var result = RulesCheck.check(board, Map.of(Rule.HOLE_TO_HOLE, new Setting(true, .3)), "MM",
+                CancellationToken.none(), ProgressCallback.none()).getFirst();
+        assertTrue(result.failed());
+        assertEquals(1, result.points().size());
+        assertEquals(25.9588, result.points().getFirst().x, 1e-9);
+    }
+
     @TempDir
     Path directory;
 

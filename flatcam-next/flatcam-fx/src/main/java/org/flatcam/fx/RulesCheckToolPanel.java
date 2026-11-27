@@ -72,7 +72,7 @@ final class RulesCheckToolPanel {
         return box;
     }
 
-    static Node build(Host host, Runnable onClose) {
+    static Node build(String units, Host host, Runnable onClose) {
         ComboBox<TreeItem<String>> copperTop = chooser(host.gerbers());
         ComboBox<TreeItem<String>> copperBottom = chooser(host.gerbers());
         ComboBox<TreeItem<String>> silkTop = chooser(host.gerbers());
@@ -107,7 +107,7 @@ final class RulesCheckToolPanel {
             CheckBox enabled = new CheckBox(I18n.caption(rule.title()));
             String key = "rules." + rule.name().toLowerCase(java.util.Locale.ROOT);
             enabled.setSelected(ToolDefaults.flag(key + ".enabled"));
-            TextField value = new TextField(ToolDefaults.text(key));
+            TextField value = new TextField(ToolDefaults.text(key, "MM".equals(units)));
             value.setPrefColumnCount(5);
             value.disableProperty().bind(enabled.selectedProperty().not());
             switches.put(rule, enabled);
@@ -211,7 +211,8 @@ final class RulesCheckToolPanel {
             onClose.run();
         });
 
-        VBox panel = new VBox(8, new Label(I18n.text("ui.bc34cbca8e0f")), objects, new Label(I18n.text("ui.d62a97bce2ea")), rules, run,
+        VBox panel = new VBox(8, new Label(I18n.text("ui.bc34cbca8e0f")), objects,
+                new Label(I18n.text("ui.d62a97bce2ea") + " [" + units.toLowerCase(Locale.ROOT) + "]"), rules, run,
                 status, new Label(I18n.text("ui.3d0b6b4cabcc")), report, new Label(I18n.text("ui.af36208e90f1")),
                 points, errorLabel, close);
         panel.setPadding(new Insets(6));

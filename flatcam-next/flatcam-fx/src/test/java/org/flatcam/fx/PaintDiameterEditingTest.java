@@ -66,6 +66,15 @@ class PaintDiameterEditingTest {
             assertEquals(37.5123456, result.settingsFor(.1981234567).lineAngleDegrees());
             assertNull(result.settingsFor(.5).lineAngleDegrees());
             assertEquals(.45, result.settingsFor(.5).overlapFraction());
+            var selectedOnly = (CheckBox) form.lookup("#paint-selected-tools-only");
+            selectedOnly.setSelected(true);
+            table.getSelectionModel().clearAndSelect(1);
+            ((Button) form.lookup("#paint-generate")).fire();
+            assertEquals(List.of(.5), output.get().toolDiameters());
+            table.getSelectionModel().select(0);
+            ((Button) form.lookup("#paint-generate")).fire();
+            assertEquals(List.of(.1981234567, .5), output.get().toolDiameters());
+            selectedOnly.setSelected(false);
             table.getSelectionModel().clearAndSelect(0);
             table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED,"","",KeyCode.DELETE,false,false,false,false));
             assertEquals(1,table.getItems().size()); assertEquals("0.5",list.getText());

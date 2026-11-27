@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.zip.ZipFile;
 import javafx.scene.control.*;
 import javafx.scene.layout.VBox;
 import org.flatcam.app.job.JobHandle;
@@ -69,6 +70,61 @@ class MainExcellonFlowTest {
                 s.release.countDown(); h.completion().get(10, TimeUnit.SECONDS); h.cancel(); return null;
             });
             s.assertNothingPublished();
+        }
+    }
+
+    @Test
+    @EnabledIfSystemProperty(named = "flatcam.test.prototipoZip", matches = ".+")
+    void importsTheReportedKiCadBoardAndGeneratesMetricDrilling() throws Exception {
+        List<java.io.File> gerbers = new ArrayList<>();
+        List<java.io.File> drills = new ArrayList<>();
+        try (var zip = new ZipFile(System.getProperty("flatcam.test.prototipoZip"))) {
+            for (String name : List.of("prototipo-Edge_Cuts.gbr", "prototipo-F_Cu.gbr", "prototipo-B_Cu.gbr",
+                    "prototipo-PTH.drl", "prototipo-NPTH.drl")) {
+                var entry = zip.getEntry(name);
+                assertNotNull(entry, name);
+                var path = directory.resolve(name);
+                try (var input = zip.getInputStream(entry)) {
+                    Files.copy(input, path);
+                }
+                (name.endsWith(".gbr") ? gerbers : drills).add(path.toFile());
+            }
+        }
+        try (var s = new MainCamFlowTest.Session("MM")) {
+            s.release.countDown();
+            TerminalPanelTest.fx(() -> {
+                call(s.window, "openGerberQueue", new Class<?>[]{List.class, int.class}, gerbers, 0);
+                return null;
+            });
+            s.awaitUi();
+            TerminalPanelTest.fx(() -> {
+                call(s.window, "openExcellonQueue", new Class<?>[]{List.class, int.class}, drills, 0);
+                return null;
+            });
+            s.awaitUi();
+            var project = TerminalPanelTest.fx(() -> (ProjectFile) call(s.window, "snapshotProject", new Class<?>[]{}));
+            var outline = project.gerbers().stream().filter(g -> g.name().equals("prototipo-Edge_Cuts.gbr"))
+                    .findFirst().orElseThrow().image();
+            assertEquals(4, project.gerbers().size());
+            assertEquals(120.05, outline.solidGeometry().getEnvelopeInternal().getWidth(), 1e-9);
+            assertEquals(2, project.excellons().size());
+            var pth = project.excellons().stream().filter(e -> e.name().equals("prototipo-PTH.drl"))
+                    .findFirst().orElseThrow().image();
+            assertEquals("MM", pth.units());
+            assertEquals(196, pth.totalDrills());
+            assertEquals(6, pth.toolDiameters().size());
+            assertEquals(0.8001, pth.toolDiameters().get(1), 1e-9);
+            var first = pth.drills().getFirst();
+            assertEquals(147.24888, first.x(), 1e-8);
+            assertEquals(-131.24942, first.y(), 1e-8);
+            assertTrue(outline.solidGeometry().getEnvelopeInternal().covers(pth.solidGeometry().getEnvelopeInternal()));
+            var npth = project.excellons().stream().filter(e -> e.name().equals("prototipo-NPTH.drl"))
+                    .findFirst().orElseThrow().image();
+            assertEquals("MM", npth.units());
+            assertTrue(npth.isEmpty());
+            String gcode = GCodeGenerator.generateDrillGCode(pth, new DrillGCodeParameters(2, 1, 100, 1000, false), Set.of(1));
+            assertTrue(gcode.contains("G21") && gcode.contains("X147.2489 Y-131.2494"));
+            assertTrue(gcode.contains("T1 D0.8001"));
         }
     }
     @ParameterizedTest @CsvSource({"MM,DRILLS", "MM,SLOTS", "IN,DRILLS", "IN,SLOTS"})

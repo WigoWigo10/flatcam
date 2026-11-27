@@ -223,7 +223,7 @@ final class MainWindow implements TclFlatcamHost {
     private record CncJobEntry(String sourceName, Path outputFile, String gcode,
                                Geometry travelGeometry, Geometry cutGeometry,
                                Geometry travelCenterlines, Geometry cutCenterlines,
-                               double previewStrokeWidth, GCodeToolpathParser.ToolpathStats stats) {
+                               double previewStrokeWidth, GCodeToolpathParser.ToolpathStats stats, String units) {
     }
 
     private record LoadedCncJob(String name, String sourceName, Path outputPath, String gcode,
@@ -664,31 +664,17 @@ final class MainWindow implements TclFlatcamHost {
         boolean hadPlot = previous.cutGeometry() != null || previous.travelGeometry() != null;
         boolean visible = !hadPlot || plotAreaView.isLayerVisible(cutKey) || plotAreaView.isLayerVisible(travelKey);
         var appearance=snapshotCncPlotSettings(item);
-        double previewWidth = previewWidthFor(parsed);
-        cncJobByItem.put(item, new CncJobEntry(previous.sourceName(), previous.outputFile(), text,
+        var entry = new CncJobEntry(previous.sourceName(), previous.outputFile(), text,
                 parsed.travelGeometry(), parsed.cutGeometry(), parsed.travelCenterlines(),
-                parsed.cutCenterlines(), previewWidth, parsed.stats()));
+                parsed.cutCenterlines(), previewWidthFor(parsed), parsed.stats(), parsed.units());
+        cncJobByItem.put(item, entry);
         // The edit may have renumbered or dropped tools; per-tool hiding no longer maps onto them.
         hiddenCncTools.remove(item);
-        if (parsed.plotAvailable()) {
-            setDisplayUnits(parsed.units());
-        }
         plotAreaView.beginBatchUpdate();
         try {
             plotAreaView.removeLayer(cutKey);
             plotAreaView.removeLayer(travelKey);
-            if (parsed.cutGeometry() != null && !parsed.cutGeometry().isEmpty()) {
-                plotAreaView.putLayer(cutKey, PlotAreaView.LayerCategory.CNCJOB,
-                        parsed.cutGeometry(), CNC_CUT_FILL, CNC_CUT_STROKE, false);
-                plotAreaView.setLayerCenterlineLod(cutKey, parsed.cutCenterlines(), previewWidth, strokedPreview(parsed.stats()));
-                plotAreaView.setLayerVisible(cutKey, visible);
-            }
-            if (parsed.travelGeometry() != null && !parsed.travelGeometry().isEmpty()) {
-                plotAreaView.putLayer(travelKey, PlotAreaView.LayerCategory.CNCJOB,
-                        parsed.travelGeometry(), CNC_TRAVEL_FILL, CNC_TRAVEL_STROKE, false);
-                plotAreaView.setLayerCenterlineLod(travelKey, parsed.travelCenterlines(), previewWidth, strokedPreview(parsed.stats()));
-                plotAreaView.setLayerVisible(travelKey, visible);
-            }
+            putCncPlotLayers(item, entry);
         } finally {
             plotAreaView.endBatchUpdate();
         }
@@ -733,7 +719,7 @@ final class MainWindow implements TclFlatcamHost {
                             if (!copy && target == null)
                                 cncJobByItem.put(item, new CncJobEntry(original.sourceName(),path,original.gcode(),
                                         original.travelGeometry(),original.cutGeometry(),original.travelCenterlines(),
-                                        original.cutCenterlines(),original.previewStrokeWidth(),original.stats()));
+                                        original.cutCenterlines(),original.previewStrokeWidth(),original.stats(),original.units()));
                         }),
                 () -> gcodeEditor.isEditing(item) && cncJobByItem.get(item) == original,
                 message -> onComplete.accept(new GCodeEditorController.SaveResult(saved[0],message)),
@@ -2374,7 +2360,7 @@ final class MainWindow implements TclFlatcamHost {
                 : dotColor == CANCELLED_COLOR ? "Cancelled." : "Idle.");
     }
 
-    /** Whether the application is showing millimetres (the units of the last object loaded). */
+    /** Whether the application is showing millimetres. */
     boolean displayUnitsMetric() {
         return !unitsLabel.getText().toLowerCase(java.util.Locale.ROOT).contains("in");
     }
@@ -2383,6 +2369,51 @@ final class MainWindow implements TclFlatcamHost {
         String display = units == null || units.isBlank() ? "mm" : units.toLowerCase(java.util.Locale.ROOT);
         unitsLabel.setText("[" + display + "]");
         plotAreaView.setUnits(units);
+    }
+
+    /** The first CAM import establishes units. Subsequent layers share the active plot scale. */
+    private String camImportUnits() {
+        if (gerberByItem.isEmpty() && excellonByItem.isEmpty() && geometryByItem.isEmpty()
+                && cncJobByItem.isEmpty()) return null;
+        return plotUnits();
+    }
+
+    private String plotUnits() {
+        return currentDisplayUnits().toUpperCase(java.util.Locale.ROOT);
+    }
+
+    private double scaleToPlot(String sourceUnits) {
+        return sourceUnits == null ? 1 : org.flatcam.cam.LengthUnits.factor(
+                sourceUnits.toUpperCase(java.util.Locale.ROOT), plotUnits());
+    }
+
+    private double cncScaleToPlot(CncJobEntry entry) {
+        return scaleToPlot(entry.units());
+    }
+
+    private static Geometry scaledGeometry(Geometry geometry, double factor) {
+        return geometry == null || factor == 1 ? geometry
+                : org.locationtech.jts.geom.util.AffineTransformation.scaleInstance(factor, factor).transform(geometry);
+    }
+
+    private static GerberImage readGerberImport(Path file, String targetUnits, CancellationToken cancellation,
+                                                org.flatcam.cam.ProgressCallback progress) throws IOException {
+        GerberImage image = new GerberParser(ToolDefaults.gerberImport()).parse(file, cancellation, progress);
+        cancellation.throwIfCancellationRequested();
+        return targetUnits == null ? image : image.convertedTo(targetUnits);
+    }
+
+    private static ExcellonImage readExcellonImport(Path file, String targetUnits, CancellationToken cancellation,
+                                                    org.flatcam.cam.ProgressCallback progress) throws IOException {
+        ExcellonImage image = new ExcellonParser(ToolDefaults.excellonImport()).parse(file, cancellation, progress);
+        cancellation.throwIfCancellationRequested();
+        return targetUnits == null ? image : image.convertedTo(targetUnits);
+    }
+
+    private record CamImportTarget(long epoch, String units) {}
+
+    private CamImportTarget camImportTarget() {
+        return new CamImportTarget(tclProjectEpoch, camImportUnits());
     }
 
     private SplitPane buildMainSplit() {
@@ -3562,11 +3593,15 @@ final class MainWindow implements TclFlatcamHost {
     }
 
     private Geometry measurableGeometry(TreeItem<String> item) {
-        Geometry geometry = gerberByItem.containsKey(item) ? gerberByItem.get(item).solidGeometry()
-                : excellonByItem.containsKey(item) ? excellonByItem.get(item).solidGeometry()
-                : geometryByItem.containsKey(item) ? geometryByItem.get(item).geometry()
-                : cncJobByItem.containsKey(item) ? cncJobByItem.get(item).cutGeometry() : null;
-        return geometry == null || geometry.isEmpty() ? null : geometry;
+        var gerber = gerberByItem.get(item);
+        var drill = excellonByItem.get(item);
+        var geometry = geometryByItem.get(item);
+        var cnc = cncJobByItem.get(item);
+        Geometry world = gerber != null ? scaledGeometry(gerber.solidGeometry(), scaleToPlot(gerber.units()))
+                : drill != null ? scaledGeometry(drill.solidGeometry(), scaleToPlot(drill.units()))
+                : geometry != null ? scaledGeometry(geometry.geometry(), scaleToPlot(geometry.units()))
+                : cnc != null ? scaledGeometry(cnc.cutGeometry(), cncScaleToPlot(cnc)) : null;
+        return world == null || world.isEmpty() ? null : world;
     }
 
     private String currentDisplayUnits() {
@@ -4069,7 +4104,8 @@ final class MainWindow implements TclFlatcamHost {
             appendConsole(I18n.text("ui.24e5404dd28c"));
             return;
         }
-        openToolPanel("Rules Check Tool", RulesCheckToolPanel.build(new RulesCheckToolPanel.Host() {
+        String ruleUnits = plotUnits();
+        openToolPanel("Rules Check Tool", RulesCheckToolPanel.build(ruleUnits, new RulesCheckToolPanel.Host() {
             @Override
             public List<TreeItem<String>> gerbers() {
                 return gerbers;
@@ -4093,7 +4129,7 @@ final class MainWindow implements TclFlatcamHost {
                         namedDrills(selection.drills2()));
                 beginJob(I18n.text("ui.c05cdfe832ea"));
                 JobHandle<List<RulesCheck.RuleResult>> handle = jobExecutor.submit(context ->
-                        RulesCheck.check(board, settings, context::isCancelled,
+                        RulesCheck.check(board, settings, ruleUnits, context::isCancelled,
                                 fraction -> context.reportProgress(fraction, I18n.text("ui.7adc4b968c08"))),
                         (fraction, message) -> Platform.runLater(() -> {
                             updateProgress(fraction);
@@ -4392,7 +4428,8 @@ final class MainWindow implements TclFlatcamHost {
                     return new PendingCncProgram(program.gcode(), null,
                             I18n.text("ui.1081e64a4d16"), destination -> {
                                 TreeItem<String> created = addCncJobToProject(destination.getFileName().toString(), sourceName,
-                                        destination, program.gcode(), travelLines, cutBodies, travelLines, cutLines, thinnest);
+                                        destination, program.gcode(), travelLines, cutBodies, travelLines, cutLines,
+                                        thinnest, null, entry.units());
                                 appendConsole(I18n.text("ui.2676ae143ffd") + destination + " (" + program.paths().size() + I18n.text("ui.f54cea355c2c"));
                                 selectProjectItem(created);
                             });
@@ -5353,21 +5390,22 @@ final class MainWindow implements TclFlatcamHost {
     private void openDoubleSidedTool() {
         if (keepEditorVisible()) return;
         releaseActiveTool();
-        openToolPanel(I18n.text("ui.b595bfb73393"), DoubleSidedToolPanel.build(new DoubleSidedToolPanel.Host() {
+        String units = plotUnits();
+        openToolPanel(I18n.text("ui.b595bfb73393"), DoubleSidedToolPanel.build(units, new DoubleSidedToolPanel.Host() {
             @Override
             public List<TreeItem<String>> objects() {
                 List<TreeItem<String>> all = new ArrayList<>();
                 all.addAll(gerbersNode.getChildren());
                 all.addAll(excellonNode.getChildren());
                 all.addAll(geometryNode.getChildren());
+                all.removeIf(item -> !units.equalsIgnoreCase(objectUnits(item)));
                 return all;
             }
 
             @Override
             public List<TreeItem<String>> selectedObjects() {
                 return MainWindow.this.selectedObjects().stream()
-                        .filter(item -> gerberByItem.containsKey(item) || excellonByItem.containsKey(item)
-                                || geometryByItem.containsKey(item)).toList();
+                        .filter(item -> units.equalsIgnoreCase(objectUnits(item))).toList();
             }
 
             @Override
@@ -5375,8 +5413,7 @@ final class MainWindow implements TclFlatcamHost {
                 return boundsOf(item);
             }
 
-            @Override
-            public String units(TreeItem<String> item) {
+            private String objectUnits(TreeItem<String> item) {
                 if (gerberByItem.containsKey(item)) {
                     return gerberByItem.get(item).units();
                 }
@@ -5384,7 +5421,7 @@ final class MainWindow implements TclFlatcamHost {
                     return excellonByItem.get(item).units();
                 }
                 GeometryEntry entry = geometryByItem.get(item);
-                return entry == null ? "MM" : entry.units();
+                return entry == null ? null : entry.units();
             }
 
             @Override
@@ -5460,6 +5497,7 @@ final class MainWindow implements TclFlatcamHost {
                 Coordinate best = null;
                 double bestDistance = reach;
                 for (ExcellonImage image : excellonByItem.values()) {
+                    if (!units.equalsIgnoreCase(image.units())) continue;
                     List<Coordinate> centers = new ArrayList<>();
                     for (ExcellonImage.Drill drill : image.drills()) {
                         centers.add(new Coordinate(drill.x(), drill.y()));
@@ -6789,7 +6827,7 @@ final class MainWindow implements TclFlatcamHost {
         } else if (cncJob != null) {
             copyItem = addCncJobToProject(copyName, cncJob.sourceName(), cncJob.outputFile(), cncJob.gcode(),
                     cncJob.travelGeometry(), cncJob.cutGeometry(), cncJob.travelCenterlines(),
-                    cncJob.cutCenterlines(), cncJob.previewStrokeWidth(), cncJob.stats());
+                    cncJob.cutCenterlines(), cncJob.previewStrokeWidth(), cncJob.stats(), cncJob.units());
             copyLayerAppearance(new CncTravelLayerKey(sourceItem), new CncTravelLayerKey(copyItem));
             copyLayerAppearance(new CncCutLayerKey(sourceItem), new CncCutLayerKey(copyItem));
             applyCncPlotSettings(copyItem,snapshotCncPlotSettings(sourceItem),isObjectVisible(sourceItem));
@@ -6883,34 +6921,51 @@ final class MainWindow implements TclFlatcamHost {
     private TreeItem<String> addCncJobToProject(String outputFileName, String sourceName, Path outputFile, String gcode,
             Geometry travelGeometry, Geometry cutGeometry, Geometry travelCenterlines,
             Geometry cutCenterlines, double previewStrokeWidth, GCodeToolpathParser.ToolpathStats stats) {
+        return addCncJobToProject(outputFileName, sourceName, outputFile, gcode, travelGeometry, cutGeometry,
+                travelCenterlines, cutCenterlines, previewStrokeWidth, stats, stats == null ? null : stats.units());
+    }
+
+    private TreeItem<String> addCncJobToProject(String outputFileName, String sourceName, Path outputFile, String gcode,
+            Geometry travelGeometry, Geometry cutGeometry, Geometry travelCenterlines,
+            Geometry cutCenterlines, double previewStrokeWidth, GCodeToolpathParser.ToolpathStats stats, String units) {
         TreeItem<String> item = new TreeItem<>(outputFileName);
-        cncJobByItem.put(item, new CncJobEntry(sourceName, outputFile, gcode, travelGeometry,
-                cutGeometry, travelCenterlines, cutCenterlines, previewStrokeWidth, stats));
+        var entry = new CncJobEntry(sourceName, outputFile, gcode, travelGeometry,
+                cutGeometry, travelCenterlines, cutCenterlines, previewStrokeWidth, stats, units);
+        cncJobByItem.put(item, entry);
         cncJobsNode.getChildren().add(item);
+        putCncPlotLayers(item, entry);
+        applyCncPlotSettings(item,restoringProject ? org.flatcam.app.project.CncPlotSettings.legacy() : new org.flatcam.app.project.CncPlotSettings(
+                ToolDefaults.text("display.cnc.cutfill"),ToolDefaults.text("display.cnc.cutline"),ToolDefaults.text("display.cnc.travelfill"),ToolDefaults.text("display.cnc.travelline"),
+                ToolDefaults.choice("display.cnc.kind"),ToolDefaults.flag("display.cnc.annotations"),ToolDefaults.flag("display.cnc.arrows"),ToolDefaults.integer("display.cnc.fontsize"),ToolDefaults.text("display.cnc.fontcolor")),
+                restoringProject || ToolDefaults.flag("display.cnc.plot"));
+        return item;
+    }
+
+    /** Geometry and stroke widths go to Plot coordinates. Saved G-code and stats keep their native units. */
+    private void putCncPlotLayers(TreeItem<String> item, CncJobEntry entry) {
+        double factor = cncScaleToPlot(entry);
+        Geometry cutGeometry = entry.cutGeometry();
+        Geometry travelGeometry = entry.travelGeometry();
+        double width = entry.previewStrokeWidth() * factor;
         plotAreaView.beginBatchUpdate();
         try {
             if (cutGeometry != null && !cutGeometry.isEmpty()) {
                 CncCutLayerKey cutKey = new CncCutLayerKey(item);
                 plotAreaView.putLayer(cutKey, PlotAreaView.LayerCategory.CNCJOB,
-                        cutGeometry, CNC_CUT_FILL, CNC_CUT_STROKE, false);
-                plotAreaView.setLayerCenterlineLod(cutKey, cutCenterlines, previewStrokeWidth, strokedPreview(stats));
+                        scaledGeometry(cutGeometry, factor), CNC_CUT_FILL, CNC_CUT_STROKE, false);
+                plotAreaView.setLayerCenterlineLod(cutKey, scaledGeometry(entry.cutCenterlines(), factor), width, strokedPreview(entry.stats()));
             }
             if (travelGeometry != null && !travelGeometry.isEmpty()) {
                 // Put after cut so it draws on top within the CNCJOB category, matching
                 // camlib.py's CNCjob.plot2() (cut layer 1, travel layer 2).
                 CncTravelLayerKey travelKey = new CncTravelLayerKey(item);
                 plotAreaView.putLayer(travelKey, PlotAreaView.LayerCategory.CNCJOB,
-                        travelGeometry, CNC_TRAVEL_FILL, CNC_TRAVEL_STROKE, false);
-                plotAreaView.setLayerCenterlineLod(travelKey, travelCenterlines, previewStrokeWidth, strokedPreview(stats));
+                        scaledGeometry(travelGeometry, factor), CNC_TRAVEL_FILL, CNC_TRAVEL_STROKE, false);
+                plotAreaView.setLayerCenterlineLod(travelKey, scaledGeometry(entry.travelCenterlines(), factor), width, strokedPreview(entry.stats()));
             }
         } finally {
             plotAreaView.endBatchUpdate();
         }
-        applyCncPlotSettings(item,restoringProject ? org.flatcam.app.project.CncPlotSettings.legacy() : new org.flatcam.app.project.CncPlotSettings(
-                ToolDefaults.text("display.cnc.cutfill"),ToolDefaults.text("display.cnc.cutline"),ToolDefaults.text("display.cnc.travelfill"),ToolDefaults.text("display.cnc.travelline"),
-                ToolDefaults.choice("display.cnc.kind"),ToolDefaults.flag("display.cnc.annotations"),ToolDefaults.flag("display.cnc.arrows"),ToolDefaults.integer("display.cnc.fontsize"),ToolDefaults.text("display.cnc.fontcolor")),
-                restoringProject || ToolDefaults.flag("display.cnc.plot"));
-        return item;
     }
 
     /**
@@ -6990,11 +7045,17 @@ final class MainWindow implements TclFlatcamHost {
         boolean showArrows = entry != null && entry.stats() != null && !cncArrowsOff.contains(item)
                 && isObjectDrawn(item);
         boolean routeVisible = entry != null && entry.stats() != null && isObjectDrawn(item);
-        plotAreaView.setSteps(key, routeVisible ? entry.stats().steps() : List.of(),
-                routeVisible ? entry.stats().pathMarks() : List.of(),
-                routeVisible ? entry.previewStrokeWidth() : 0, routeVisible ? entry.stats().units() : "MM");
+        double factor = entry == null ? 1 : cncScaleToPlot(entry);
+        var steps = routeVisible ? entry.stats().steps() : List.<GCodeToolpathParser.PathStep>of();
+        var marks = routeVisible ? entry.stats().pathMarks() : List.<GCodeToolpathParser.PathMark>of();
+        if (factor != 1) {
+            steps = steps.stream().map(step -> scalePlotStep(step, factor)).toList();
+            marks = marks.stream().map(mark -> new GCodeToolpathParser.PathMark(
+                    mark.sequence(), mark.x() * factor, mark.y() * factor)).toList();
+        }
+        plotAreaView.setSteps(key, steps, marks, routeVisible ? entry.previewStrokeWidth() * factor : 0, plotUnits());
         plotAreaView.setArrows(key, !showArrows ? List.of() : entry.stats().cutArrows().stream()
-                .map(a -> new PlotAreaView.Arrow(a.x(), a.y(), a.dx(), a.dy(), a.length()))
+                .map(a -> new PlotAreaView.Arrow(a.x() * factor, a.y() * factor, a.dx(), a.dy(), a.length() * factor))
                 .toList());
         if (entry == null || entry.stats() == null || entry.stats().pathMarks().isEmpty()
                 || cncAnnotationsOff.contains(item) || !isObjectDrawn(item)) {
@@ -7012,8 +7073,15 @@ final class MainWindow implements TclFlatcamHost {
         }
         plotAreaView.setAnnotations(key, entry.stats().pathMarks().stream()
                 .filter(mark -> !hiddenPositions.contains(List.of(mark.x(), mark.y())))
-                .map(mark -> new PlotAreaView.Annotation(mark.x(), mark.y(), Integer.toString(mark.sequence()),Color.web(appearance.fontColor()),appearance.fontSize()))
+                .map(mark -> new PlotAreaView.Annotation(mark.x() * factor, mark.y() * factor, Integer.toString(mark.sequence()),Color.web(appearance.fontColor()),appearance.fontSize()))
                 .toList());
+    }
+
+    private static GCodeToolpathParser.PathStep scalePlotStep(GCodeToolpathParser.PathStep step, double factor) {
+        double[] xy = step.xy().clone();
+        for (int i = 0; i < xy.length; i++) xy[i] *= factor;
+        return new GCodeToolpathParser.PathStep(step.index(), step.travel(), xy, step.length() * factor,
+                step.fromMark(), step.toMark(), step.endMinutes());
     }
 
     /** Rebuilds a CNC Job's plot from only the tools still ticked in its tools table. */
@@ -7025,14 +7093,15 @@ final class MainWindow implements TclFlatcamHost {
         Set<Integer> hidden = hiddenCncTools.getOrDefault(item, Set.of());
         CncCutLayerKey cutKey = new CncCutLayerKey(item);
         CncTravelLayerKey travelKey = new CncTravelLayerKey(item);
+        double factor = cncScaleToPlot(entry);
         plotAreaView.beginBatchUpdate();
         try {
             if (hidden.isEmpty()) {
-                plotAreaView.updateLayerGeometry(cutKey, entry.cutGeometry());
-                plotAreaView.setLayerCenterlineLod(cutKey, entry.cutCenterlines(), entry.previewStrokeWidth(),
+                plotAreaView.updateLayerGeometry(cutKey, scaledGeometry(entry.cutGeometry(), factor));
+                plotAreaView.setLayerCenterlineLod(cutKey, scaledGeometry(entry.cutCenterlines(), factor), entry.previewStrokeWidth() * factor,
                         strokedPreview(entry.stats()));
-                plotAreaView.updateLayerGeometry(travelKey, entry.travelGeometry());
-                plotAreaView.setLayerCenterlineLod(travelKey, entry.travelCenterlines(), entry.previewStrokeWidth(),
+                plotAreaView.updateLayerGeometry(travelKey, scaledGeometry(entry.travelGeometry(), factor));
+                plotAreaView.setLayerCenterlineLod(travelKey, scaledGeometry(entry.travelCenterlines(), factor), entry.previewStrokeWidth() * factor,
                         strokedPreview(entry.stats()));
             } else {
                 List<Geometry> cuts = new ArrayList<>();
@@ -7043,10 +7112,10 @@ final class MainWindow implements TclFlatcamHost {
                         addParts(travels, tool.travelGeometry());
                     }
                 }
-                plotAreaView.updateLayerGeometry(cutKey, CNC_GEOMETRY_FACTORY.createGeometryCollection(
-                        cuts.toArray(Geometry[]::new)));
-                plotAreaView.updateLayerGeometry(travelKey, CNC_GEOMETRY_FACTORY.createGeometryCollection(
-                        travels.toArray(Geometry[]::new)));
+                plotAreaView.updateLayerGeometry(cutKey, scaledGeometry(CNC_GEOMETRY_FACTORY.createGeometryCollection(
+                        cuts.toArray(Geometry[]::new)), factor));
+                plotAreaView.updateLayerGeometry(travelKey, scaledGeometry(CNC_GEOMETRY_FACTORY.createGeometryCollection(
+                        travels.toArray(Geometry[]::new)), factor));
             }
         } finally {
             plotAreaView.endBatchUpdate();
@@ -7157,7 +7226,7 @@ final class MainWindow implements TclFlatcamHost {
                 GCodeToolpathParser.Result preview = generated.preview();
                 if (preview != null && preview.warning() != null) appendConsole(output.getFileName() + ": " + preview.warning());
                 addCncJobToProject(output.getFileName().toString(), sourceName, output, job.gcode(),
-                        job.travelGeometry(), job.cutGeometry(), null, null, 0, preview == null ? null : preview.stats());
+                        job.travelGeometry(), job.cutGeometry(), null, null, 0, preview == null ? null : preview.stats(), image.units());
                 updateProgress(1);
                 setStatus(I18n.text("ui.93dd97eb5672"), IDLE_COLOR);
             } catch (RuntimeException failure) { reportJobError(failure, I18n.text("ui.8125d6ade168")); }
@@ -8121,7 +8190,7 @@ final class MainWindow implements TclFlatcamHost {
                                 centerlines ? preview.travelCenterlines() : null,
                                 centerlines ? preview.cutCenterlines() : null,
                                 centerlines ? previewWidthFor(preview) : 0,
-                                preview == null ? null : preview.stats());
+                                preview == null ? null : preview.stats(), entry.units());
                         if (toolTab.getContent() == before.panel()) {
                             sourceUpdated.accept(updatedEntry);
                             selectProjectItem(cncItem);
@@ -9327,11 +9396,11 @@ final class MainWindow implements TclFlatcamHost {
 
     @Override
     public String openGerber(Path file, String outname) throws IOException {
-        long epoch = TclExecution.onFx(() -> tclProjectEpoch);
-        GerberImage image = new GerberParser(ToolDefaults.gerberImport()).parse(file, TclExecution.cancellation(),
+        var target = TclExecution.onFx(this::camImportTarget);
+        GerberImage image = readGerberImport(file, target.units(), TclExecution.cancellation(),
                 TclExecution.progress(I18n.text("ui.1c07d83986c8")));
         return TclExecution.onFx(() -> {
-            checkTclProject(epoch);
+            checkCamImportTarget(target);
             String name = uniqueDerivedName(outname);
             setDisplayUnits(image.units());
             addGerberToProject(name, file, image);
@@ -9341,11 +9410,11 @@ final class MainWindow implements TclFlatcamHost {
 
     @Override
     public String openExcellon(Path file, String outname) throws IOException {
-        long epoch = TclExecution.onFx(() -> tclProjectEpoch);
-        ExcellonImage image = new ExcellonParser(ToolDefaults.excellonImport()).parse(file, TclExecution.cancellation(),
+        var target = TclExecution.onFx(this::camImportTarget);
+        ExcellonImage image = readExcellonImport(file, target.units(), TclExecution.cancellation(),
                 TclExecution.progress(I18n.text("ui.9a28e15ae79c")));
         return TclExecution.onFx(() -> {
-            checkTclProject(epoch);
+            checkCamImportTarget(target);
             String name = uniqueDerivedName(outname);
             setDisplayUnits(image.units());
             addExcellonToProject(name, file, image);
@@ -9477,7 +9546,8 @@ final class MainWindow implements TclFlatcamHost {
             if (version instanceof GeometryEntry entry)
                 return new TclSource(item, name, version, Kind.GEOMETRY, entry.units(), entry.geometry(), null, tclProjectEpoch);
             CncJobEntry entry = (CncJobEntry) version;
-            return new TclSource(item, name, version, Kind.CNC_JOB, "MM", entry.cutGeometry(), entry.gcode(), tclProjectEpoch);
+            return new TclSource(item, name, version, Kind.CNC_JOB,
+                    entry.units() == null ? plotUnits() : entry.units(), entry.cutGeometry(), entry.gcode(), tclProjectEpoch);
         });
         if (source == null) throw new TclException("Object not found: " + name);
         return source;
@@ -9485,6 +9555,11 @@ final class MainWindow implements TclFlatcamHost {
 
     private void checkTclProject(long epoch) {
         if (epoch != tclProjectEpoch)
+            throw new IllegalStateException(I18n.text("ui.efe65e3351f4"));
+    }
+
+    private void checkCamImportTarget(CamImportTarget expected) {
+        if (!expected.equals(camImportTarget()))
             throw new IllegalStateException(I18n.text("ui.efe65e3351f4"));
     }
 
@@ -9628,7 +9703,8 @@ final class MainWindow implements TclFlatcamHost {
         return TclExecution.onFx(() -> {
             checkTclSource(source);
             String actual = uniqueDerivedName(outname);
-            addCncJobToProject(actual, sourceName, Path.of(actual), job.gcode(), job.travelGeometry(), job.cutGeometry());
+            addCncJobToProject(actual, sourceName, Path.of(actual), job.gcode(), job.travelGeometry(), job.cutGeometry(),
+                    null, null, 0, null, source.units());
             return actual;
         });
     }
@@ -9663,7 +9739,7 @@ final class MainWindow implements TclFlatcamHost {
             checkTclSource(source);
             String actual = uniqueDerivedName(outname);
             addCncJobToProject(actual, sourceName, Path.of(actual), generated.gcode(),
-                    generated.travelGeometry(), generated.cutGeometry());
+                    generated.travelGeometry(), generated.cutGeometry(), null, null, 0, null, image.units());
             return actual;
         });
     }
@@ -10168,14 +10244,14 @@ final class MainWindow implements TclFlatcamHost {
                 return;
             }
             GCodeToolpathParser.Result preview = imported.preview();
+            if (preview.plotAvailable() && camImportUnits() == null) setDisplayUnits(preview.units());
             String name = uniqueDerivedName(file.getName());
             TreeItem<String> item = addCncJobToProject(name, file.getName(), file.toPath(),
                     imported.text(), preview.travelGeometry(), preview.cutGeometry(),
                     preview.travelCenterlines(), preview.cutCenterlines(), previewWidthFor(preview),
-                    preview.stats());
+                    preview.stats(), preview.units());
             selectProjectItem(item);
             if (preview.plotAvailable()) {
-                setDisplayUnits(preview.units());
                 focusCncJob(item, cncJobByItem.get(item));
             } else {
                 appendConsole(file.getName() + ": " + preview.warning());
@@ -10212,8 +10288,9 @@ final class MainWindow implements TclFlatcamHost {
             setStatus(message, RUNNING_COLOR);
             appendConsole(message);
         }
+        CamImportTarget target = camImportTarget();
         JobHandle<GerberImage> handle = jobExecutor.submit(context ->
-                new GerberParser(ToolDefaults.gerberImport()).parse(file.toPath(), context::isCancelled,
+                readGerberImport(file.toPath(), target.units(), context::isCancelled,
                         fileFraction -> context.reportProgress(
                                 (index + fileFraction) / files.size(), message)),
                 (fraction, progressMessage) -> Platform.runLater(() -> {
@@ -10224,6 +10301,7 @@ final class MainWindow implements TclFlatcamHost {
 
         handle.completion()
                 .thenAccept(image -> Platform.runLater(() -> {
+                    if (!finishCamImportIfCurrent(target, handle)) return;
                     setDisplayUnits(image.units());
                     appendConsole(String.format(
                             I18n.text("ui.be67cf4d0180"),
@@ -10270,8 +10348,9 @@ final class MainWindow implements TclFlatcamHost {
             setStatus(message, RUNNING_COLOR);
             appendConsole(message);
         }
+        CamImportTarget target = camImportTarget();
         JobHandle<ExcellonImage> handle = jobExecutor.submit(context ->
-                new ExcellonParser(ToolDefaults.excellonImport()).parse(file.toPath(), context::isCancelled,
+                readExcellonImport(file.toPath(), target.units(), context::isCancelled,
                         fileFraction -> context.reportProgress(
                                 (index + fileFraction) / files.size(), message)),
                 (fraction, progressMessage) -> Platform.runLater(() -> {
@@ -10282,6 +10361,7 @@ final class MainWindow implements TclFlatcamHost {
 
         handle.completion()
                 .thenAccept(image -> Platform.runLater(() -> {
+                    if (!finishCamImportIfCurrent(target, handle)) return;
                     setDisplayUnits(image.units());
                     appendConsole(String.format(
                             I18n.text("ui.67067f3b4261"),
@@ -10303,6 +10383,14 @@ final class MainWindow implements TclFlatcamHost {
                     });
                     return null;
                 });
+    }
+
+    private boolean finishCamImportIfCurrent(CamImportTarget target, JobHandle<?> handle) {
+        if (runningJob != handle) return false;
+        if (target.equals(camImportTarget())) return true;
+        reportJobError(new IllegalStateException(I18n.text("ui.efe65e3351f4")), "");
+        onJobFinished();
+        return false;
     }
 
     /** A drawing parsed by SvgImporter, DxfImporter or HpglImporter ({@code pens} only for HPGL). */
@@ -10901,13 +10989,13 @@ final class MainWindow implements TclFlatcamHost {
         plotAreaView.beginBatchUpdate();
         try {
             clearProject(cancelTerminal);
+            setDisplayUnits(restoredPlotUnits(project));
             currentProjectImportWarnings = project.importWarnings();
             currentPythonLegacy = project.pythonLegacy();
             for (ProjectFile.GerberEntry loaded : project.gerbers()) {
                 TreeItem<String> item = addGerberToProject(loaded.name(), null, loaded.image());
                 rememberPythonOrigin(item, "gerber");
                 applyRestoredGerberState(item, loaded.image(), loaded);
-                setDisplayUnits(loaded.image().units());
             }
             for (ProjectFile.ExcellonEntry loaded : project.excellons()) {
                 TreeItem<String> item = addExcellonToProject(loaded.name(), null, loaded.image(),
@@ -10915,7 +11003,6 @@ final class MainWindow implements TclFlatcamHost {
                 if (loaded.cncSettings() != null) drillCncSettingsByItem.put(item, loaded.cncSettings());
                 rememberPythonOrigin(item, "excellon");
                 applyRestoredExcellonState(item, loaded);
-                setDisplayUnits(loaded.image().units());
             }
             for (ProjectFile.GeometryEntry loaded : project.geometries()) {
                 TreeItem<String> item = addGeometryToProject(loaded.name(), loaded.sourceName(),
@@ -10936,19 +11023,15 @@ final class MainWindow implements TclFlatcamHost {
                 if (!loaded.visible()) {
                     setObjectVisible(item, false);
                 }
-                setDisplayUnits(loaded.units());
             }
             for (LoadedCncJob loaded : project.cncJobs()) {
                 TreeItem<String> item = addCncJobToProject(loaded.name(), loaded.sourceName(),
                         loaded.outputPath(), loaded.gcode(), loaded.travelGeometry(), loaded.cutGeometry(),
                         loaded.travelCenterlines(), loaded.cutCenterlines(), loaded.previewStrokeWidth(),
-                        loaded.stats());
+                        loaded.stats(), loaded.units());
                 rememberPythonOrigin(item, "cncjob");
                 applyCncPlotSettings(item,loaded.plotSettings()==null?org.flatcam.app.project.CncPlotSettings.legacy():loaded.plotSettings(),loaded.visible());
                 if (!loaded.visible()) setObjectVisible(item, false);
-                if (loaded.units() != null) {
-                    setDisplayUnits(loaded.units());
-                }
             }
             restoreCamWorkspace(project.camWorkspace());
         } finally {
@@ -10956,6 +11039,14 @@ final class MainWindow implements TclFlatcamHost {
             plotAreaView.endBatchUpdate();
         }
         plotAreaView.logPerformancePhase("project restore (FX thread)", restoreStart);
+    }
+
+    private static String restoredPlotUnits(LoadedProject project) {
+        if (!project.gerbers().isEmpty()) return project.gerbers().getFirst().image().units();
+        if (!project.excellons().isEmpty()) return project.excellons().getFirst().image().units();
+        if (!project.geometries().isEmpty()) return project.geometries().getFirst().units();
+        return project.cncJobs().stream().map(LoadedCncJob::units).filter(Objects::nonNull)
+                .findFirst().orElseGet(UiNumbers::initialUnits);
     }
 
     private void reportOpenedProject(Path file, LoadedProject project) {
