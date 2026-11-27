@@ -1,15 +1,16 @@
 # FlatCAM FX
 
-## Beta 0.1.0-beta.10
+## Beta 0.1.0-beta.11
 
 Pacotes Windows x64 com Java incluído, instaladores EXE/MSI e ZIP portátil.
-[Notas da Beta 10](release/BETA-0.1.0-beta.10.md) ·
-[Geração e validação](release/BUILD_BETA.md) ·
-[Histórico da Beta 8](release/VALIDACAO-0.1.0-beta.8.md).
+[Downloads da Beta 11](https://github.com/WigoWigo10/flatcam/releases/tag/v0.1.0-beta.11) ·
+[Notas da Beta 11](release/BETA-0.1.0-beta.11.md) ·
+[Histórico de versões do FX](CHANGELOG.md) ·
+[Geração e validação](release/BUILD_BETA.md).
 
-A Beta 10 corrige a escala entre arquivos em polegadas e milímetros, a
-atualização de diâmetros de ferramentas e aberturas ao escalar, e a seleção de
-fresas no Paint. O MSI 0.1.100 usa a mesma família de atualização da Beta 9.
+A Beta 11 gera arquivos CNC por grupo de fresas, filtra elementos por
+ferramenta nos editores Geometry e Excellon e oferece seleção de bicos no
+Solder Paste. O MSI 0.1.110 usa a mesma família de atualização da Beta 10.
 Os artefatos são gerados localmente em `target/releases`.
 
 Reimplementação gradual do FlatCAM Python/PyQt5 em Java 25 + JavaFX. O projeto

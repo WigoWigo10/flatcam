@@ -116,6 +116,9 @@ try {
         '-lshell32','-o',(Join-Path $image 'FlatCAM FX Beta.exe'))
     Copy-Item -LiteralPath (Join-Path $PSScriptRoot '..\LICENSE') -Destination (Join-Path $image 'LICENSE.txt')
     Copy-Item -LiteralPath "release\BETA-$releaseLabel.md" -Destination (Join-Path $image 'LEIA-ME-BETA.md')
+    Copy-Item -LiteralPath 'CHANGELOG.md' -Destination $image
+    $versionNotes = New-Item -ItemType Directory -Path (Join-Path $image 'release')
+    Get-ChildItem -LiteralPath 'release' -File -Filter 'BETA-*.md' | Copy-Item -Destination $versionNotes.FullName
     Copy-Item -LiteralPath 'USER_GUIDE.md' -Destination $image
     $manifest=[ordered]@{version=$version;betaRevision=$betaRevision;releaseLabel=$releaseLabel;channel='beta';installerVersion=$installerVersion;sourceCommit=$commit;
         dirty=$dirty;verification=$(if($SkipTests){'NOT_RUN'}else{'PASS'});builtUtc=[DateTime]::UtcNow.ToString('o');runtime='Temurin 25.0.5+8';runtimeSource=$runtimeUrl;

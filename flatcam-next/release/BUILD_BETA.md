@@ -95,8 +95,8 @@ para a última geração. A pasta contém:
 - `verify.log` e `native-build.log`: resultados completos da geração.
 - `validation.json`: resultado posterior do teste de distribuição.
 
-Cada imagem contém `flatcam-release.json`, licença, notas da Beta, guia e
-`SHA256SUMS.txt` com o inventário dos arquivos. O commit também é filtrado em
+Cada imagem contém `flatcam-release.json`, licença, notas da Beta, changelog,
+guia e `SHA256SUMS.txt` com o inventário dos arquivos. O commit também é filtrado em
 `build-info.properties` dentro do JAR para aparecer no diagnóstico.
 
 O processo é reproduzível por comando com dependências fixadas; **não** se
