@@ -19,6 +19,7 @@ import org.junit.jupiter.api.condition.*;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.locationtech.jts.geom.Geometry;
 
 /** Completion must preserve the same editable draft, not recreate a panel with default values. */
 @EnabledOnOs(OS.WINDOWS)
@@ -213,6 +214,48 @@ class MainToolPersistenceTest {
                 return null;
             });
             assertFalse(Files.exists(directory.resolve("stale.nc")));
+        }
+    }
+
+    @Test @SuppressWarnings("unchecked")
+    void cncSubsetExportsKeepAllSourceToolsAndTheSavedRecipe() throws Exception {
+        try (var s = new MainCamFlowTest.Session("MM")) {
+            var path = s.referenceGeometry.getBoundary();
+            var tools = List.of(new ToolGeometry(.2, path), new ToolGeometry(.3, path), new ToolGeometry(1, path));
+            var source = TerminalPanelTest.fx(() -> (TreeItem<String>) call(s.window, "addGeometryToProject",
+                    new Class<?>[]{String.class, String.class, String.class, Geometry.class, boolean.class, List.class},
+                    "rest", "board", "MM", path, true, tools));
+            var original = TerminalPanelTest.fx(() -> s.geometries().get(source));
+            var settings = new org.flatcam.app.project.GeometryCncSettings(GCodePreprocessor.GRBL_11_NO_M6, null, Map.of());
+            var draft = TerminalPanelTest.fx(() -> {
+                ((Map<TreeItem<String>, org.flatcam.app.project.GeometryCncSettings>)
+                        field(s.window, "geometryCncSettingsByItem")).put(source, settings);
+                call(s.window, "generateGeometryCncJob", new Class<?>[]{TreeItem.class, original.getClass()}, source, original);
+                return panel(s);
+            });
+            var parameters = new GeometryGCodeParameters(2, .1, false, .1, 100, 10000, true);
+            for (var indices : List.of(List.of(0, 1), List.of(2))) {
+                var group = indices.stream().map(tools::get).toList();
+                var result = new GeometryCncToolPanel.Result(group, parameters, Map.of(),
+                        GCodePreprocessor.GRBL_11_NO_M6, Map.of(), indices);
+                Path output = directory.resolve("group-" + indices.getFirst() + ".nc");
+                var handle = TerminalPanelTest.fx(() -> {
+                    call(s.window, "startGeometryCncGeneration",
+                            new Class<?>[]{TreeItem.class, original.getClass(), GeometryCncToolPanel.Result.class, Path.class},
+                            source, original, result, output);
+                    return job(s);
+                });
+                finish(s, handle);
+                assertPanel(s, draft);
+                assertTrue(Files.size(output) > 0);
+                assertEquals(indices.stream().map(i -> "T" + (i + 1)).toList(),
+                        Files.readString(output).lines().filter(line -> line.matches("T[0-9]+")).toList());
+                TerminalPanelTest.fx(() -> {
+                    assertSame(original, s.geometries().get(source));
+                    assertSame(settings, ((Map<?, ?>) field(s.window, "geometryCncSettingsByItem")).get(source));
+                    return null;
+                });
+            }
         }
     }
 

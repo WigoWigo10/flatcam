@@ -3,12 +3,15 @@ package org.flatcam.fx;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
 import javafx.scene.control.ListView;
+import javafx.scene.control.cell.CheckBoxListCell;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
 import javafx.scene.control.TreeItem;
@@ -23,6 +26,12 @@ import org.flatcam.cam.solderpaste.SolderPaste;
  * at (0, 0), feeds 150 / 150 / 1.0, dispenser 300 rpm / 1 s forward and 200 rpm / 1 s reverse.
  */
 final class SolderPasteToolPanel {
+
+    private record Nozzle(double diameter, BooleanProperty included) {
+        Nozzle(double diameter) {
+            this(diameter, new SimpleBooleanProperty(true));
+        }
+    }
 
     interface Host {
         List<TreeItem<String>> gerbers();
@@ -45,13 +54,24 @@ final class SolderPasteToolPanel {
     static Node build(Host host, Runnable onClose) {
         SolderPaste.Parameters d = SolderPaste.defaults();
 
-        ListView<Double> nozzles = new ListView<>();
-        nozzles.getItems().setAll(1.0, 0.3);
+        ListView<Nozzle> nozzles = new ListView<>();
+        nozzles.setId("solder-paste-nozzles");
+        nozzles.getItems().setAll(new Nozzle(1.0), new Nozzle(0.3));
+        nozzles.setCellFactory(CheckBoxListCell.forListView(Nozzle::included, new javafx.util.StringConverter<>() {
+            public String toString(Nozzle nozzle) { return nozzle == null ? "" : num(nozzle.diameter()); }
+            public Nozzle fromString(String text) { throw new UnsupportedOperationException(); }
+        }));
         nozzles.setPrefHeight(90);
+        ToolDescriptions.apply(nozzles, I18n.text("ui.e946fa70b464"), I18n.text("paste.nozzles.scope"));
         TextField newNozzle = field(ToolDefaults.text("paste.newnozzle"));
+        newNozzle.setId("solder-paste-nozzle-diameter");
         ToolDescriptions.apply(newNozzle,I18n.text("ui.6a4a4d63e61a"), I18n.text("ui.f14b6c7f7c8c"));
         Button addNozzle = new Button(I18n.text("ui.1fe6bc9ce658"));
+        addNozzle.setId("solder-paste-add-nozzle");
         Button removeNozzle = new Button(I18n.text("ui.a3037dc71a43"));
+        removeNozzle.setId("solder-paste-remove-nozzle");
+        ToolDescriptions.apply(removeNozzle, removeNozzle.getText(), I18n.text("paste.nozzles.remove.help"));
+        removeNozzle.disableProperty().bind(nozzles.getSelectionModel().selectedItemProperty().isNull());
 
         ComboBox<TreeItem<String>> gerber = combo(host.gerbers());
         gerber.getSelectionModel().select(host.initialGerber());
@@ -93,6 +113,7 @@ final class SolderPasteToolPanel {
         form.addRow(12, new Label(I18n.text("ui.1fb331d49c1a")), dwellReverse);
 
         Label errorLabel = new Label();
+        errorLabel.setId("solder-paste-error");
         errorLabel.getStyleClass().add("form-error-label");
         errorLabel.setWrapText(true);
 
@@ -100,13 +121,13 @@ final class SolderPasteToolPanel {
             errorLabel.setText("");
             try {
                 double diameter = number(newNozzle);
-                if (!(diameter > 0)) {
+                if (!(diameter > 0) || !Double.isFinite(diameter)) {
                     throw new IllegalArgumentException(I18n.text("ui.044d7d87a38e"));
                 }
-                if (nozzles.getItems().stream().anyMatch(n -> Math.abs(n - diameter) < 1e-9)) {
+                if (nozzles.getItems().stream().anyMatch(n -> Math.abs(n.diameter() - diameter) < 1e-9)) {
                     throw new IllegalArgumentException(I18n.text("ui.50baca6f9cc3"));
                 }
-                nozzles.getItems().add(diameter);
+                nozzles.getItems().add(new Nozzle(diameter));
             } catch (NumberFormatException invalid) {
                 errorLabel.setText(I18n.text("ui.147c8a203046"));
             } catch (IllegalArgumentException invalid) {
@@ -117,6 +138,7 @@ final class SolderPasteToolPanel {
                 nozzles.getItems().removeAll(new ArrayList<>(nozzles.getSelectionModel().getSelectedItems())));
 
         Button createGeometry = new Button(I18n.text("ui.59718f624153"));
+        createGeometry.setId("solder-paste-create-geometry");
         createGeometry.setMaxWidth(Double.MAX_VALUE);
         createGeometry.setOnAction(event -> {
             errorLabel.setText("");
@@ -124,13 +146,20 @@ final class SolderPasteToolPanel {
                 errorLabel.setText(I18n.text("ui.07a7bc987b9d"));
                 return;
             }
-            String error = host.createGeometry(gerber.getValue(), List.copyOf(nozzles.getItems()));
+            List<Double> included = nozzles.getItems().stream().filter(nozzle -> nozzle.included().get())
+                    .map(Nozzle::diameter).toList();
+            if (included.isEmpty()) {
+                errorLabel.setText(I18n.text("paste.nozzles.required"));
+                return;
+            }
+            String error = host.createGeometry(gerber.getValue(), included);
             errorLabel.setText(error == null ? "" : error);
             geometry.getItems().setAll(host.pasteGeometries());
             geometry.getSelectionModel().selectLast();
         });
 
         Button createJob = new Button(I18n.text("ui.8995d7ccef17"));
+        ToolDescriptions.apply(createJob, createJob.getText(), I18n.text("paste.nozzles.job.help"));
         createJob.setMaxWidth(Double.MAX_VALUE);
         createJob.setOnAction(event -> {
             errorLabel.setText("");
@@ -156,8 +185,10 @@ final class SolderPasteToolPanel {
 
         TitledPane parameters = new TitledPane(I18n.text("ui.17b7e75b9a90"), form);
         parameters.setExpanded(true);
+        Label nozzleScope = new Label(I18n.text("paste.nozzles.scope"));
+        nozzleScope.setWrapText(true);
         VBox panel = new VBox(8,
-                new Label(I18n.text("ui.e946fa70b464")), nozzles, new HBox(6, newNozzle, addNozzle, removeNozzle),
+                new Label(I18n.text("ui.e946fa70b464")), nozzleScope, nozzles, new HBox(6, newNozzle, addNozzle, removeNozzle),
                 new Label(I18n.text("ui.2d4fab952575")), gerber, createGeometry,
                 parameters,
                 new Label(I18n.text("ui.cf97060e16d8")), geometry, createJob,

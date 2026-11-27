@@ -88,6 +88,7 @@ public final class ExcellonEditSession {
 
     public void selectIds(Collection<Long> ids) {
         selected.clear();
+        if (ids.isEmpty()) return;
         Set<Long> valid = hits.stream().map(Hit::id).collect(java.util.stream.Collectors.toSet());
         for (Long id : ids) {
             if (valid.contains(id)) selected.add(id);
@@ -95,6 +96,10 @@ public final class ExcellonEditSession {
     }
 
     public void clickSelect(double x, double y, double tolerance, boolean additive) {
+        clickSelect(x, y, tolerance, additive, null);
+    }
+
+    public void clickSelect(double x, double y, double tolerance, boolean additive, Integer toolFilter) {
         if (!Double.isFinite(x) || !Double.isFinite(y) || !Double.isFinite(tolerance) || tolerance < 0) return;
         Envelope area = new Envelope(x - tolerance, x + tolerance, y - tolerance, y + tolerance);
         @SuppressWarnings("unchecked")
@@ -103,6 +108,7 @@ public final class ExcellonEditSession {
         Hit closest = null;
         double best = Double.POSITIVE_INFINITY;
         for (Hit hit : candidates) {
+            if (toolFilter != null && hit.toolId() != toolFilter) continue;
             double distance = footprint(hit).distance(point);
             if (distance <= tolerance && distance < best) {
                 best = distance;
@@ -114,17 +120,36 @@ public final class ExcellonEditSession {
     }
 
     public void boxSelect(double x1, double y1, double x2, double y2, boolean additive) {
+        boxSelect(x1, y1, x2, y2, additive, null);
+    }
+
+    public void boxSelect(double x1, double y1, double x2, double y2, boolean additive, Integer toolFilter) {
         Envelope area = new Envelope(x1, x2, y1, y2);
         @SuppressWarnings("unchecked")
         List<Hit> candidates = index.query(area);
         Geometry box = factory.toGeometry(area);
         if (!additive) selected.clear();
-        for (Hit hit : candidates) if (footprint(hit).intersects(box)) selected.add(hit.id());
+        for (Hit hit : candidates) {
+            if ((toolFilter == null || hit.toolId() == toolFilter) && footprint(hit).intersects(box)) {
+                selected.add(hit.id());
+            }
+        }
+    }
+
+    public void retainSelectionForTool(int toolId) {
+        if (selected.isEmpty()) return;
+        for (Hit hit : hits) {
+            if (hit.toolId() != toolId) selected.remove(hit.id());
+        }
     }
 
     public Geometry geometry() {
         if(cachedGeometry==null) cachedGeometry=geometryOf(hits);
         return cachedGeometry;
+    }
+
+    public Geometry visibleGeometry(Integer toolFilter) {
+        return toolFilter == null ? geometry() : geometryOf(hits.stream().filter(hit -> hit.toolId() == toolFilter).toList());
     }
 
     /** Installs a worker array once, atomically with any newly required tool. */

@@ -5,6 +5,8 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
+import javafx.beans.property.BooleanProperty;
+import javafx.beans.property.SimpleBooleanProperty;
 import org.flatcam.app.project.LegacyToolsDatabase;
 import org.flatcam.app.project.CncJobDefaults;
 import javafx.geometry.Insets;
@@ -16,6 +18,7 @@ import javafx.scene.control.Label;
 import javafx.scene.control.Tooltip;
 import javafx.scene.control.TableColumn;
 import javafx.scene.control.TableView;
+import javafx.scene.control.cell.CheckBoxTableCell;
 import javafx.scene.control.TextField;
 import javafx.scene.control.TitledPane;
 import javafx.scene.layout.GridPane;
@@ -35,9 +38,7 @@ import org.locationtech.jts.geom.Geometry;
 /**
  * Parameters for the Python-equivalent Geometry -> CNCJob step. When the
  * source Geometry already carries its own tool associations (a multigeo
- * object - e.g. an NCC result), those tools/diameters are fixed and shown
- * read-only: there is nothing to ask the user, since Python's own
- * mtool_gen_cncjob likewise just iterates the object's existing tools.
+ * object - e.g. an NCC result), the user can include those paths by tool.
  * Otherwise (a plain single-purpose Geometry, e.g. a boundary/non-copper
  * outline) the user must supply one tool diameter, as before.
  */
@@ -45,8 +46,19 @@ final class GeometryCncToolPanel {
 
     record Result(List<ToolGeometry> tools, GeometryGCodeParameters parameters,
                   Map<Integer, VTipSettings> vTools, GCodePreprocessor preprocessor,
-                  Map<Integer, GeometryGCodeParameters> parametersByTool) {
+                  Map<Integer, GeometryGCodeParameters> parametersByTool, List<Integer> sourceToolIndices) {
+        Result(List<ToolGeometry> tools, GeometryGCodeParameters parameters,
+               Map<Integer, VTipSettings> vTools, GCodePreprocessor preprocessor,
+               Map<Integer, GeometryGCodeParameters> parametersByTool) {
+            this(tools, parameters, vTools, preprocessor, parametersByTool, List.of());
+        }
+
+        boolean isSubset() {
+            return !sourceToolIndices.isEmpty();
+        }
     }
+
+    private record ToolRow(int index, BooleanProperty included) {}
 
     private GeometryCncToolPanel() {
     }
@@ -94,23 +106,40 @@ final class GeometryCncToolPanel {
         toolDiaField.setId("cnc-tool-dia");
         if (!multiTool && settings != null && settings.singleToolDiameter() != null)
             toolDiaField.setText(Double.toString(settings.singleToolDiameter()));
-        TableView<ToolGeometry> toolTable = new TableView<>();
+        List<ToolRow> rows = java.util.stream.IntStream.range(0, tools.size())
+                .mapToObj(i -> new ToolRow(i, new SimpleBooleanProperty(true))).toList();
+        Supplier<List<Integer>> includedIndices = () -> rows.stream().filter(row -> row.included().get())
+                .map(ToolRow::index).toList();
+        TableView<ToolRow> toolTable = new TableView<>();
         toolTable.setId("cnc-tools");
         toolTable.setMinWidth(0);
         toolTable.setColumnResizePolicy(TableView.CONSTRAINED_RESIZE_POLICY_ALL_COLUMNS);
         if (multiTool) {
-            TableColumn<ToolGeometry, Number> idColumn = new TableColumn<>("#");
+            TableColumn<ToolRow, Number> idColumn = new TableColumn<>("#");
             idColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleIntegerProperty(
-                    toolTable.getItems().indexOf(cellData.getValue()) + 1));
-            TableColumn<ToolGeometry, Number> diaColumn = new TableColumn<>(I18n.text("ui.7cd23abc62e0"));
+                    cellData.getValue().index() + 1));
+            TableColumn<ToolRow, Number> diaColumn = new TableColumn<>(I18n.text("ui.7cd23abc62e0"));
             diaColumn.setCellValueFactory(cellData ->
-                    new javafx.beans.property.SimpleDoubleProperty(cellData.getValue().toolDiameter()));
-            TableColumn<ToolGeometry, String> typeColumn = new TableColumn<>("TT");
+                    new javafx.beans.property.SimpleDoubleProperty(tools.get(cellData.getValue().index()).toolDiameter()));
+            TableColumn<ToolRow, String> typeColumn = new TableColumn<>("TT");
             typeColumn.setCellValueFactory(cellData -> new javafx.beans.property.SimpleStringProperty(
-                    cellData.getValue().toolProfile().name()));
-            toolTable.getColumns().addAll(List.of(idColumn, diaColumn, typeColumn));
+                    tools.get(cellData.getValue().index()).toolProfile().name()));
+            TableColumn<ToolRow, Boolean> includeColumn = new TableColumn<>(I18n.text("cnc.tools.include"));
+            includeColumn.setId("cnc-include-tool");
+            includeColumn.setCellValueFactory(cellData -> cellData.getValue().included());
+            includeColumn.setCellFactory(CheckBoxTableCell.forTableColumn(includeColumn));
+            includeColumn.setMinWidth(44);
+            includeColumn.setPrefWidth(55);
+            includeColumn.setMaxWidth(78);
+            toolTable.setEditable(true);
+            toolTable.getColumns().addAll(List.of(idColumn, diaColumn, typeColumn, includeColumn));
+            toolTable.getColumns().forEach(column -> column.setSortable(false));
             CompactToolsTable.configure(toolTable, idColumn, diaColumn, typeColumn);
-            toolTable.getItems().setAll(tools);
+            // The profile is read-only here and does not need room for a combo box.
+            typeColumn.setMinWidth(32);
+            typeColumn.setPrefWidth(40);
+            typeColumn.setMaxWidth(54);
+            toolTable.getItems().setAll(rows);
             toolTable.setPrefHeight(Math.min(160, 40 + tools.size() * 28));
         } else if (tools.size() == 1) {
             toolDiaField.setText(format(tools.get(0).toolDiameter()));
@@ -348,7 +377,10 @@ final class GeometryCncToolPanel {
                     Double.toString(p.extraCutLength()), Boolean.toString(p.multiDepth()), Boolean.toString(p.dwell()), Boolean.toString(p.extraCut()),
                     p.offset().name(), Double.toString(p.customOffset()),p.passStrategy().name()});
         }
+        rows.forEach(toolRow -> toolRow.included().addListener((obs, old, included) -> commonDb.setActiveIds(
+                includedIndices.get().stream().map(i -> i + 1).collect(java.util.stream.Collectors.toSet()))));
         int[] editing = {0};
+        var reviewIndices = new java.util.concurrent.atomic.AtomicReference<>(List.<Integer>of());
         if (multiTool) {
             restore.accept(snapshots.get(0));
             toolTable.getSelectionModel().select(0);
@@ -412,7 +444,19 @@ final class GeometryCncToolPanel {
         generateButton.getStyleClass().add("primary-action");
         generateButton.setMaxWidth(Double.MAX_VALUE);
         generateButton.setOnAction(e -> {
+            String[] restoreEditor = null;
             try {
+                List<Integer> included = includedIndices.get();
+                if (multiTool && included.isEmpty()) throw new IllegalArgumentException(I18n.text("ui.2244c551a96a"));
+                boolean subset = multiTool && included.size() < tools.size();
+                if (multiTool) {
+                    String[] current = capture.get();
+                    snapshots.put(editing[0], current);
+                    if (!included.contains(editing[0])) {
+                        restoreEditor = current;
+                        restore.accept(snapshots.get(included.getFirst()));
+                    }
+                }
                 commonDb.assertResolved();
                 zInput.begin();
                 double safeZ = plotter.get() ? 1 : zInput.travel(safeZField, "Travel Z");
@@ -446,27 +490,26 @@ final class GeometryCncToolPanel {
                         unsupportedPositions.get() ? org.flatcam.cam.gcode.GeometryPassStrategy.RETRACT_SAME_DIRECTION : passStrategy.getValue(),zInput.policy());
                 preprocessor.getValue().validateFeedRates(params.feedRate(), params.rapidFeedRate());
                 List<ToolGeometry> resultTools = multiTool
-                        ? tools
+                        ? included.stream().map(tools::get).toList()
                         : List.of(new ToolGeometry(parse(toolDiaField, "Tool Dia"), combinedGeometry, singleProfile.get()));
                 if (roland.get() && resultTools.stream().filter(tool -> !tool.geometry().isEmpty()).count() > 1)
                     throw new IllegalArgumentException(I18n.text("ui.37bf12bf4358"));
                 Map<Integer, VTipSettings> vTools = new LinkedHashMap<>();
-                for (var entry : vFields.entrySet()) {
-                    if (noCutZ.get()) break;
-                    if (resultTools.get(entry.getKey()).toolProfile() != ToolProfile.V) continue;
-                    TextField[] fields = entry.getValue();
+                for (int i = 0; i < resultTools.size() && !noCutZ.get(); i++) {
+                    if (resultTools.get(i).toolProfile() != ToolProfile.V) continue;
+                    TextField[] fields = vFields.get(multiTool ? included.get(i) : i);
                     VTipSettings tipSettings = new VTipSettings(parse(fields[0], "V-Tip Dia"),
                             parse(fields[1], "V-Tip Angle"));
-                    tipSettings.cutDepth(resultTools.get(entry.getKey()).toolDiameter());
-                    vTools.put(entry.getKey(), tipSettings);
+                    tipSettings.cutDepth(resultTools.get(i).toolDiameter());
+                    vTools.put(i, tipSettings);
                 }
                 errorLabel.setText("");
                 Map<Integer, GeometryGCodeParameters> byTool = new LinkedHashMap<>();
                 if (multiTool && !plotter.get()) {
-                    snapshots.put(editing[0], capture.get());
-                    for (int i = 0; i < tools.size(); i++) {
+                    for (int i = 0; i < included.size(); i++) {
+                        int sourceIndex = included.get(i);
                         try {
-                        String[] s = snapshots.get(i);
+                        String[] s = snapshots.get(sourceIndex);
                         GeometryGCodeParameters p = new GeometryGCodeParameters(
                                 zInput.travel(s[0], "Tool " + (i+1) + " Travel/Focus Z"), noCutZ.get() ? 1 : zInput.cut(s[1], "Tool " + (i+1) + " Cut Z"), !noCutZ.get() && Boolean.parseBoolean(s[8]),
                                 !noCutZ.get() && Boolean.parseBoolean(s[8]) ? parseText(s[2], "Depth per pass") : 1,
@@ -481,7 +524,7 @@ final class GeometryCncToolPanel {
                         preprocessor.getValue().validateFeedRates(p.feedRate(), params.rapidFeedRate());
                         byTool.put(i, p);
                         } catch(IllegalArgumentException invalid) {
-                            throw new IllegalArgumentException((laser.get() ? I18n.text("ui.d032112ef2c6") : I18n.text("ui.10f99bd620cc"))+(i+1)+": "+invalid.getMessage(),invalid);
+                            throw new IllegalArgumentException((laser.get() ? I18n.text("ui.d032112ef2c6") : I18n.text("ui.10f99bd620cc"))+(sourceIndex+1)+": "+invalid.getMessage(),invalid);
                         }
                     }
                     restore.accept(snapshots.get(editing[0]));
@@ -494,12 +537,15 @@ final class GeometryCncToolPanel {
                 positions.validate(preprocessor.getValue(), clearance, params.pauseForToolChange() || preprocessor.getValue().automaticToolSelection());
                 if (unsupportedPositions.get() && (params.offset() != ToolPathOffset.PATH
                         || byTool.values().stream().anyMatch(p -> p.offset() != ToolPathOffset.PATH)
-                        || snapshots.values().stream().anyMatch(s -> !s[11].equals(ToolPathOffset.PATH.name()))))
+                        || included.stream().map(snapshots::get).anyMatch(s -> !s[11].equals(ToolPathOffset.PATH.name()))))
                     throw new IllegalArgumentException(I18n.text("ui.a49498744f99"));
+                reviewIndices.set(included);
                 onGenerate.accept(new Result(resultTools, params, Map.copyOf(vTools),
-                        preprocessor.getValue(), Map.copyOf(byTool)));
+                        preprocessor.getValue(), Map.copyOf(byTool), subset ? included : List.of()));
             } catch (RuntimeException ex) {
                 errorLabel.setText(ex.getMessage());
+            } finally {
+                if (restoreEditor != null) restore.accept(restoreEditor);
             }
         });
         Button closeButton = new Button(I18n.text("ui.0f2bd88ef0ac"));
@@ -515,7 +561,10 @@ final class GeometryCncToolPanel {
             box.getChildren().add(restored);
         }
         if (multiTool) {
-            box.getChildren().addAll(new Label(I18n.text("ui.2efce7578e94")), toolTable);
+            Label scope = new Label(I18n.text("cnc.tools.include.help"));
+            scope.setWrapText(true);
+            ToolDescriptions.apply(toolTable, I18n.text("ui.2efce7578e94"), scope.getText());
+            box.getChildren().addAll(new Label(I18n.text("ui.2efce7578e94")), toolTable, scope);
         }
         box.getChildren().add(DatabaseToolPicker.build("cnc-db", database, selected -> {
             int index = multiTool ? toolTable.getSelectionModel().getSelectedIndex() : 0;
@@ -525,7 +574,7 @@ final class GeometryCncToolPanel {
             if (!multiTool) { toolDiaField.setText(Double.toString(selected.diameter())); singleProfile.set(selected.profile()); }
             else {
                 tools.set(index, new ToolGeometry(selected.diameter(), tools.get(index).geometry(), selected.profile()));
-                toolTable.setItems(FXCollections.observableArrayList(tools));
+                toolTable.setItems(FXCollections.observableArrayList(rows));
                 toolTable.getSelectionModel().select(index);
             }
             GeometryGCodeParameters p = selected.parameters();
@@ -569,8 +618,10 @@ final class GeometryCncToolPanel {
             commonDb.replaceAll(imported);
         }
         CncReviewNavigation.install(box, index -> {
-            if (multiTool && index >= 0 && index < toolTable.getItems().size()) {
-                toolTable.getSelectionModel().clearAndSelect(index); toolTable.scrollTo(index);
+            List<Integer> reviewed = reviewIndices.get();
+            int sourceIndex = index >= 0 && index < reviewed.size() ? reviewed.get(index) : index;
+            if (multiTool && sourceIndex >= 0 && sourceIndex < toolTable.getItems().size()) {
+                toolTable.getSelectionModel().clearAndSelect(sourceIndex); toolTable.scrollTo(sourceIndex);
             }
         });
         return box;

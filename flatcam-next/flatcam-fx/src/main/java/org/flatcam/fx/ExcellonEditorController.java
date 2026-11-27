@@ -6,6 +6,9 @@ import java.util.Set;
 import javafx.beans.property.ReadOnlyStringWrapper;
 import javafx.collections.FXCollections;
 import javafx.collections.ListChangeListener;
+import javafx.collections.ObservableList;
+import javafx.collections.transformation.FilteredList;
+import javafx.collections.transformation.SortedList;
 import javafx.geometry.Insets;
 import javafx.scene.Node;
 import javafx.scene.control.Button;
@@ -49,6 +52,7 @@ final class ExcellonEditorController {
     }
 
     private static final Object SHAPES_LAYER = new Object();
+    private static final int ALL_TOOLS = -1;
     private static final GeometryFactory FACTORY = new GeometryFactory();
     private final PlotAreaView plotArea;
     private final Host host;
@@ -56,7 +60,11 @@ final class ExcellonEditorController {
     private ExcellonEditSession session;
     private boolean initiallyVisible;
     private TableView<ExcellonEditSession.Row> table;
+    private ObservableList<ExcellonEditSession.Row> shapeRows;
+    private FilteredList<ExcellonEditSession.Row> visibleRows;
     private ComboBox<Integer> toolChoice;
+    private ComboBox<Integer> toolFilter;
+    private Button selectVisible;
     private Label status;
     private Label instruction;
     private Button deleteButton;
@@ -105,17 +113,21 @@ final class ExcellonEditorController {
         plotArea.setSelectionHandler(new PlotAreaView.SelectionHandler() {
             @Override
             public void onClick(double x, double y, boolean additive) {
-                session.clickSelect(x, y, plotArea.pickToleranceWorld(), additive);
+                session.clickSelect(x, y, plotArea.pickToleranceWorld(), additive, filteredTool());
                 refreshSelection();
             }
 
             @Override
             public void onBox(double x1, double y1, double x2, double y2, boolean additive) {
-                session.boxSelect(x1, y1, x2, y2, additive);
+                session.boxSelect(x1, y1, x2, y2, additive, filteredTool());
                 refreshSelection();
             }
         });
-        table = new TableView<>(FXCollections.observableArrayList(session.rows()));
+        shapeRows = FXCollections.observableArrayList(session.rows());
+        visibleRows = new FilteredList<>(shapeRows);
+        var sortedRows = new SortedList<>(visibleRows);
+        table = new TableView<>(sortedRows);
+        sortedRows.comparatorProperty().bind(table.comparatorProperty());
         table.setId("excellon-shapes");
         table.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
         TableColumn<ExcellonEditSession.Row, String> id = new TableColumn<>("ID");
@@ -150,6 +162,39 @@ final class ExcellonEditorController {
         toolChoice.valueProperty().addListener((observable, oldValue, newValue) -> {
             if (newValue != null) diameterField.setText(Double.toString(session.toolDiameters().get(newValue)));
         });
+        toolFilter = new ComboBox<>();
+        toolFilter.setId("excellon-tool-filter");
+        toolFilter.getItems().add(ALL_TOOLS);
+        toolFilter.getItems().addAll(toolChoice.getItems());
+        toolFilter.setValue(ALL_TOOLS);
+        toolFilter.setMaxWidth(Double.MAX_VALUE);
+        String unitsLabel = image.units().toLowerCase(java.util.Locale.ROOT);
+        toolFilter.setConverter(new javafx.util.StringConverter<>() {
+            public String toString(Integer id) {
+                if (id == null || id == ALL_TOOLS) return I18n.text("excellon.editor.allTools");
+                Double diameter = session == null ? null : session.toolDiameters().get(id);
+                return "T" + id + (diameter == null ? "" : " · Ø " + diameter + " " + unitsLabel);
+            }
+            public Integer fromString(String text) { throw new UnsupportedOperationException(); }
+        });
+        ToolDescriptions.apply(toolFilter, I18n.text("excellon.editor.filter"), I18n.text("excellon.editor.filter.help"));
+        toolFilter.valueProperty().addListener((observable, oldValue, newValue) -> {
+            if (syncing || session == null) return;
+            plotArea.cancelPlacement();
+            session.selectIds(List.of());
+            syncing = true;
+            try {
+                updateFilter();
+            } finally {
+                syncing = false;
+            }
+            plotArea.updateLayerGeometry(SHAPES_LAYER, session.visibleGeometry(filteredTool()));
+            refreshSelection();
+        });
+        selectVisible = new Button(I18n.text("geometry.editor.selectShown"));
+        selectVisible.setId("excellon-select-visible");
+        ToolDescriptions.apply(selectVisible, selectVisible.getText(), I18n.text("excellon.editor.selectShown.help"));
+        selectVisible.setOnAction(event -> table.getSelectionModel().selectAll());
         columnsField = new TextField(ToolDefaults.text("editor.excellon.columns", image.units().equals("MM")));
         rowsField = new TextField(ToolDefaults.text("editor.excellon.rows", image.units().equals("MM")));
         pitchXField = new TextField(ToolDefaults.text("editor.excellon.pitchx", image.units().equals("MM")));
@@ -200,7 +245,7 @@ final class ExcellonEditorController {
                 this::cancelArrayFromShortcut,()-> { cancelArrayFromShortcut(); if(session!=null) refreshSelection(); });
         diameterField.textProperty().addListener((o,a,b)->cancelArrayFromShortcut());
         arrayPane=new TitledPane(I18n.text("ui.09d418cd7f24"),arrays); arrayPane.setId("excellon-array-panel"); arrayPane.setExpanded(false);
-        VBox panel = new VBox(8, new Label("Excellon Editor"), table,
+        VBox panel = new VBox(8, new Label("Excellon Editor"), toolFilter, selectVisible, table,
                 new Label(I18n.text("ui.2ad42ffddf90")), toolChoice, controls,
                 button(I18n.text("ui.c4e06f684551"), "resize16.png", this::resizeSelected),
                 arrayPane,
@@ -438,10 +483,34 @@ final class ExcellonEditorController {
                     : availableTools.isEmpty() ? null : availableTools.get(0));
         }
         syncing = true;
-        table.getItems().setAll(session.rows());
-        syncing = false;
-        plotArea.updateLayerGeometry(SHAPES_LAYER, session.geometry());
+        try {
+            var filterOptions = new ArrayList<Integer>();
+            filterOptions.add(ALL_TOOLS);
+            filterOptions.addAll(availableTools);
+            if (!toolFilter.getItems().equals(filterOptions)) {
+                Integer current = toolFilter.getValue();
+                toolFilter.getItems().setAll(filterOptions);
+                toolFilter.setValue(filterOptions.contains(current) ? current : ALL_TOOLS);
+                updateFilter();
+            }
+            shapeRows.setAll(session.rows());
+        } finally {
+            syncing = false;
+        }
+        Integer filter = filteredTool();
+        if (filter != null) session.retainSelectionForTool(filter);
+        plotArea.updateLayerGeometry(SHAPES_LAYER, session.visibleGeometry(filter));
         refreshSelection();
+    }
+
+    private Integer filteredTool() {
+        Integer id = toolFilter == null ? null : toolFilter.getValue();
+        return id == null || id == ALL_TOOLS ? null : id;
+    }
+
+    private void updateFilter() {
+        Integer id = filteredTool();
+        visibleRows.setPredicate(id == null ? null : row -> row.toolId() == id);
     }
 
     private void refreshSelection() {
@@ -470,6 +539,8 @@ final class ExcellonEditorController {
         undoButton.setDisable(!session.canUndo());
         redoButton.setDisable(!session.canRedo());
         applyButton.setDisable(busy || !session.isDirty());
+        toolFilter.setDisable(busy || toolFilter.getItems().size() == 1);
+        selectVisible.setDisable(busy || table.getItems().isEmpty());
     }
 
     void apply() {
@@ -499,7 +570,11 @@ final class ExcellonEditorController {
         item = null;
         session = null;
         table = null;
+        shapeRows = null;
+        visibleRows = null;
         toolChoice = null;
+        toolFilter = null;
+        selectVisible = null;
         status = null;
         instruction = null;
     }

@@ -15,6 +15,51 @@ import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class ExcellonArrayPanelTest {
+    @Test void filterLimitsPlotAndBulkDeletionToOneToolAndKeepsUndo() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var image = ExcellonImage.of("MM", Map.of(7, .8, 23, 1.2),
+                    List.of(new ExcellonImage.Drill(7, 20, 40), new ExcellonImage.Drill(23, 50, 40)),
+                    List.of(new ExcellonImage.Slot(7, 24, 40, 26, 40),
+                            new ExcellonImage.Slot(23, 55, 40, 58, 40)), null);
+            var h = new Harness(image);
+            try {
+                @SuppressWarnings("unchecked")
+                var filter = (ComboBox<Integer>) h.panel.lookup("#excellon-tool-filter");
+                @SuppressWarnings("unchecked")
+                var table = (TableView<ExcellonEditSession.Row>) h.panel.lookup("#excellon-shapes");
+                filter.setValue(7);
+                var sort = table.getColumns().getLast();
+                sort.setSortType(TableColumn.SortType.DESCENDING);
+                table.getSortOrder().setAll(List.of(sort));
+                assertEquals(List.of("Slot", "Drill"), table.getItems().stream().map(ExcellonEditSession.Row::type).toList());
+                h.click(50, 40);
+                assertEquals(0, h.session().selectedCount(), "The hidden drill cannot be picked from the Plot");
+                h.click(20, 40);
+                assertEquals(1, h.session().selectedCount());
+
+                ((Button) h.panel.lookup("#excellon-select-visible")).fire();
+                assertEquals(2, h.session().selectedCount());
+                table.fireEvent(new KeyEvent(KeyEvent.KEY_PRESSED, "", "", KeyCode.DELETE,
+                        false, false, false, false));
+                assertTrue(table.getItems().isEmpty());
+                var remaining = h.session().resultImage();
+                assertEquals(List.of(image.drills().getLast()), remaining.drills());
+                assertEquals(List.of(image.slots().getLast()), remaining.slots());
+                assertTrue(h.editor.undoFromShortcut());
+                assertEquals(Integer.valueOf(7), filter.getValue());
+                assertEquals(2, table.getItems().size());
+                filter.setValue(23);
+                assertEquals(0, h.session().selectedCount());
+                assertEquals(2, table.getItems().size());
+                assertTrue(h.editor.redoFromShortcut());
+                assertEquals(2, table.getItems().size());
+            } finally {
+                h.editor.cancel();
+            }
+            return null;
+        });
+    }
+
     @Test void deleteFromTheShapeTableKeepsDrillingUndoAvailable() throws Exception {
         TerminalPanelTest.fx(() -> {
             var h=new Harness(true);
@@ -33,9 +78,11 @@ class ExcellonArrayPanelTest {
         ExcellonArray.Parameters parameters; Consumer<ExcellonArray.Prepared> done; Consumer<String> failed;
         Node panel;
         Harness(boolean existing) {
+            this(ExcellonImage.of("MM", existing ? Map.of(7,.8) : Map.of(),
+                    existing ? List.of(new ExcellonImage.Drill(7,10,10)) : List.of(), List.of(), new GeometryFactory().createPolygon()));
+        }
+        Harness(ExcellonImage image) {
             new Scene(chrome,380,1100); plot.resize(800,600); plot.setGridSnap(false,1,1);
-            var image=ExcellonImage.of("MM",existing ? Map.of(7,.8) : Map.of(),
-                    existing ? List.of(new ExcellonImage.Drill(7,10,10)) : List.of(),List.of(),new GeometryFactory().createPolygon());
             editor.start(new TreeItem<>("holes"),image); chrome.applyCss(); chrome.layout();
         }
         public void openToolPanel(String title,Node node) { panel=node; chrome.getChildren().add(node); }

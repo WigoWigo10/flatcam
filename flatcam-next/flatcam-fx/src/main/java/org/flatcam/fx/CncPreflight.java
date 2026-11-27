@@ -43,6 +43,8 @@ final class CncPreflight {
         var activeDiameters = new java.util.HashSet<Double>();
         for (int i = 0; i < result.tools().size(); i++) {
             var tool = result.tools().get(i);
+            int sourceIndex = result.isSubset() ? result.sourceToolIndices().get(i) : i;
+            int number = sourceIndex + 1;
             var p = result.parametersByTool().getOrDefault(i, base);
             boolean empty = tool.geometry().isEmpty();
             double effectiveTravel=profile.isLaser() ? p.safeZ() : travelPolicy.effective(p.safeZ(),clearance);
@@ -52,11 +54,11 @@ final class CncPreflight {
             var details = new ArrayList<Value>();
             if (cutting && !empty && tool.toolProfile() == ToolProfile.V) {
                 var tip = result.vTools().get(i);
-                if (tip == null) issues.add(new Issue(true, "T" + (i + 1) + I18n.text("ui.7ecba51e2280"), target(i, "cnc-v-tip-dia-" + i)));
+                if (tip == null) issues.add(new Issue(true, "T" + number + I18n.text("ui.7ecba51e2280"), target(i, "cnc-v-tip-dia-" + sourceIndex)));
                 else {
                     depth = tip.cutDepth(tool.toolDiameter());
                     details.add(value(I18n.text("ui.1feec4e1d55d"), I18n.text("ui.89567ec41c36") + number(tip.tipDiameter()) + I18n.text("ui.6fda6180d28e") + number(tip.angleDegrees())
-                            + I18n.text("ui.9768f55ed772"), i, "cnc-v-tip-angle-" + i));
+                            + I18n.text("ui.9768f55ed772"), i, "cnc-v-tip-angle-" + sourceIndex));
                 }
             }
             details.add(value(profile.isRoland() ? I18n.text("ui.f4981419d2de") : I18n.text("ui.454b2dde1174"), cutting ? number(-depth) + " " + unit(units) : I18n.text("ui.bba24fda01d2"), i, "cnc-cut-depth"));
@@ -80,7 +82,7 @@ final class CncPreflight {
                     ? number(p.dwellSeconds()) + " s" : I18n.text("ui.826446dfe890"), i, "cnc-dwell"));
             details.add(value(I18n.text("ui.60fa7b5bd3b3"), p.offset() + (p.offset() == ToolPathOffset.CUSTOM ? " (" + number(p.customOffset()) + ")" : ""), i, "cnc-offset"));
             details.add(value("Extra Cut", profile.isLaser() ? I18n.text("ui.9e3cc8a124a3") : p.extraCut() ? number(p.extraCutLength()) + " " + unit(units) : I18n.text("ui.f47dfde9cb6f"), i, "cnc-extra-length"));
-            details.add(value(I18n.text("ui.4ab70b7c88af"), empty ? I18n.text("ui.3fb8df6736c4") : I18n.text("ui.958178d22851") + (i + 1), i, "cnc-tools"));
+            details.add(value(I18n.text("ui.4ab70b7c88af"), empty ? I18n.text("ui.3fb8df6736c4") : I18n.text("ui.958178d22851") + number, i, "cnc-tools"));
             if(profile.isRoland() || profile.isPlotter())
                 nativeSample(details,issues,profile,units,i,"cnc-tools",empty ? null : tool.geometry().getCoordinate());
             String cutText=cutting ? number(-depth) : "—", travelText=cutting || profile.isLaser() && profile != GCodePreprocessor.GRBL_LASER ? number(p.safeZ()) : "—";
@@ -92,18 +94,18 @@ final class CncPreflight {
                 feedZText=nativeValue(details,issues,units,i,"cnc-feed-z","Feed Z",p.feedRateZ(),true,false);
                 if(p.multiDepth()) nativeValue(details,issues,units,i,"cnc-depth-per-pass",I18n.text("ui.818257a55a3b"),-Math.copySign(Math.min(Math.abs(depth),p.depthPerPass()),depth),false,false);
             }
-            rows.add(new Tool(i, (profile.isLaser() ? I18n.text("ui.d032112ef2c6") : "T") + (i + 1) + (empty ? I18n.text("ui.819050e28a59") : ""), number(tool.toolDiameter()),
+            rows.add(new Tool(i, (profile.isLaser() ? I18n.text("ui.d032112ef2c6") : "T") + number + (empty ? I18n.text("ui.819050e28a59") : ""), number(tool.toolDiameter()),
                     cutText,travelText,feedXYText,feedZText,
                     profile.isPlotter() || profile.isRoland() ? "—" : powerText(profile, p.spindleSpeedRpm()), details));
-            if (empty) issues.add(new Issue(false, "T" + (i + 1) + I18n.text("ui.6ca16626fd81"), target(i, "cnc-tools")));
+            if (empty) issues.add(new Issue(false, "T" + number + I18n.text("ui.6ca16626fd81"), target(i, "cnc-tools")));
             if (!empty && cutting && p.spindleSpeedRpm() == 0 && !profile.isRoland() && profile != GCodePreprocessor.REPETIER)
-                issues.add(new Issue(false, "T" + (i + 1) + I18n.text("ui.0d4bcab951ab"), target(i, "cnc-power")));
+                issues.add(new Issue(false, "T" + number + I18n.text("ui.0d4bcab951ab"), target(i, "cnc-power")));
             if (!empty && cutting && p.multiDepth() && p.passStrategy() == GeometryPassStrategy.CONTINUOUS_ALTERNATING)
-                issues.add(new Issue(false, "T" + (i + 1) + I18n.text("ui.022775b3004a"), target(i, "cnc-pass-strategy")));
+                issues.add(new Issue(false, "T" + number + I18n.text("ui.022775b3004a"), target(i, "cnc-pass-strategy")));
             if (!empty && cutting && p.multiDepth() && p.passStrategy()==GeometryPassStrategy.CONTINUOUS_SAME_DIRECTION)
                 issues.add(new Issue(false,"T"+(i+1)+I18n.text("ui.57dd0c310e16"),target(i,"cnc-pass-strategy")));
             if (!empty && p.offset() != ToolPathOffset.PATH)
-                issues.add(new Issue(false, "T" + (i + 1) + I18n.text("ui.18f32844797a"), target(i, "cnc-offset")));
+                issues.add(new Issue(false, "T" + number + I18n.text("ui.18f32844797a"), target(i, "cnc-offset")));
         }
         if (activeDiameters.isEmpty()) issues.add(new Issue(true, I18n.text("ui.752f69ab47a1"), null));
         if (cutting && activeDiameters.size() > 1 && !base.pauseForToolChange() && !profile.automaticToolSelection())

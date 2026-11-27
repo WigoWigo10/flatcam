@@ -8055,7 +8055,12 @@ final class MainWindow implements TclFlatcamHost {
         chooser.setTitle(I18n.text("ui.34806b17f23b"));
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter(I18n.text("ui.abef442239ce") + I18n.caption(result.preprocessor().label()),
                 result.preprocessor().filePatterns()));
-        chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + "_cnc" + result.preprocessor().fileExtension());
+        String group = result.isSubset() ? (result.sourceToolIndices().size() <= 4
+                ? result.sourceToolIndices().stream().map(i -> "T" + (i + 1))
+                        .collect(java.util.stream.Collectors.joining("-", "_", ""))
+                : "_selected") : "";
+        chooser.setInitialFileName(item.getValue().replaceFirst("\\.[^.]+$", "") + group + "_cnc"
+                + result.preprocessor().fileExtension());
         String fallbackDir = Path.of("tests/gerber_files").toAbsolutePath().toString();
         Path lastDir = Path.of(AppPreferences.loadLastCamDirectory(fallbackDir));
         if (Files.isDirectory(lastDir)) {
@@ -8098,10 +8103,22 @@ final class MainWindow implements TclFlatcamHost {
         if (draft.preprocessor().isLaser() || draft.preprocessor().isPlotter() || draft.preprocessor().requiresProbe())
             throw new IllegalArgumentException(I18n.text("ui.35a7f2b8cfd7"));
         var owned = new java.util.concurrent.atomic.AtomicReference<JobHandle<?>>();
+        Node previousPanel = toolTab.getContent();
+        String previousLabel = toolTab.getText();
         var panel = new CncCoveragePanel(item.getValue(), entry.units(), draft.tools(), plotAreaView::setCoverageResidual,
                 () -> {
-                    if (geometryByItem.get(item) == entry) generateGeometryCncJob(item, entry, draft);
-                    else { appendConsole(I18n.text("ui.c2179dabf8e0")); closeToolPanel(); }
+                    if (geometryByItem.get(item) != entry) {
+                        appendConsole(I18n.text("ui.c2179dabf8e0"));
+                        closeToolPanel();
+                    } else if (previousPanel != null && "Geometry CNC Job".equals(previousLabel)) {
+                        releaseActiveTool();
+                        toolTab.setText(previousLabel);
+                        toolTab.setContent(previousPanel);
+                        leftTabs.getSelectionModel().select(toolTab);
+                        activeToolCleanup = this::clearToolOverlays;
+                    } else {
+                        generateGeometryCncJob(item, entry, draft.isSubset() ? null : draft);
+                    }
                 }, () -> { var handle = owned.get(); if (handle != null) handle.cancel(); });
         openToolPanel(I18n.text("ui.0a2d821cb334")+entry.machiningTarget().operation(), panel);
         var before = captureCamGeneration(item, entry.geometry(), null, null);
@@ -8159,7 +8176,7 @@ final class MainWindow implements TclFlatcamHost {
         activeCamGeneration = before;
         JobHandle<GeometryCncGeneration.Generated> handle = jobExecutor.submit(context -> TclExecution.run(context,
                 () -> GeometryCncGeneration.generate(entry.units(), result.tools(), result.parameters(), result.vTools(),
-                        result.parametersByTool(), result.preprocessor(), output, context,
+                        result.parametersByTool(), result.preprocessor(), result.sourceToolIndices(), output, context,
                         () -> TclExecution.onFx(() -> { validate.run(); return null; }))), camProgress(before));
         runningJob = handle;
 
@@ -8170,12 +8187,15 @@ final class MainWindow implements TclFlatcamHost {
                         if (handle.isCancelled()) throw new CancellationException();
                         validate.run();
                         CncJobResult job = generated.job();
-                        var updatedEntry = new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),
-                                entry.strokeOnly(), entry.tools().isEmpty() ? entry.tools() : result.tools(), result.parameters(), entry.machiningTarget());
-                        geometryByItem.put(item, updatedEntry);
-                        geometryCncSettingsByItem.put(item, new GeometryCncSettings(result.preprocessor(),
-                                entry.tools().isEmpty() ? result.tools().getFirst().toolDiameter() : null,
-                                result.vTools(), result.parametersByTool(), result.tools().getFirst().toolProfile()));
+                        GeometryEntry updatedEntry = entry;
+                        if (!result.isSubset()) {
+                            updatedEntry = new GeometryEntry(entry.sourceName(), entry.units(), entry.geometry(),
+                                    entry.strokeOnly(), entry.tools().isEmpty() ? entry.tools() : result.tools(), result.parameters(), entry.machiningTarget());
+                            geometryByItem.put(item, updatedEntry);
+                            geometryCncSettingsByItem.put(item, new GeometryCncSettings(result.preprocessor(),
+                                    entry.tools().isEmpty() ? result.tools().getFirst().toolDiameter() : null,
+                                    result.vTools(), result.parametersByTool(), result.tools().getFirst().toolProfile()));
+                        }
                         AppPreferences.saveLastCamDirectory(output.toAbsolutePath().getParent().toString());
                         appendConsole(I18n.text("ui.d81048624959") + output
                                 + " (" + job.gcode().lines().count() + I18n.text("ui.d1862403f7c1"));

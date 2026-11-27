@@ -729,6 +729,14 @@ public final class GCodeGenerator {
             GeometryGCodeParameters params, Map<Integer, VTipSettings> vTools,
             Map<Integer, GeometryGCodeParameters> parametersByTool,
             CancellationToken cancellationToken, GCodePreprocessor preprocessor) {
+        return generateGeometryCncJob(units, tools, params, vTools, parametersByTool, cancellationToken, preprocessor, List.of());
+    }
+
+    /** Source indices preserve tool identifiers when a job uses only part of its source Geometry. */
+    public static CncJobResult generateGeometryCncJob(String units, List<ToolGeometry> tools,
+            GeometryGCodeParameters params, Map<Integer, VTipSettings> vTools,
+            Map<Integer, GeometryGCodeParameters> parametersByTool,
+            CancellationToken cancellationToken, GCodePreprocessor preprocessor, List<Integer> sourceToolIndices) {
         Objects.requireNonNull(parametersByTool, "parametersByTool");
         if (parametersByTool.keySet().stream().anyMatch(id -> id < 0 || id >= tools.size()))
             throw new IllegalArgumentException("Invalid tool parameter index");
@@ -748,6 +756,13 @@ public final class GCodeGenerator {
         if (tools.isEmpty()) {
             throw new IllegalArgumentException("At least one tool geometry is required");
         }
+        if (!sourceToolIndices.isEmpty() && (sourceToolIndices.size() != tools.size()
+                || sourceToolIndices.stream().anyMatch(index -> index < 0 || index == Integer.MAX_VALUE)
+                || sourceToolIndices.stream().distinct().count() != tools.size())) {
+            throw new IllegalArgumentException("Invalid source tool indices");
+        }
+        java.util.function.IntUnaryOperator toolNumber =
+                index -> (sourceToolIndices.isEmpty() ? index : sourceToolIndices.get(index)) + 1;
         preprocessor.validatePower(params.spindleSpeedRpm());
         double clearance = Math.max(params.safeZ(), parametersByTool.values().stream()
                 .mapToDouble(GeometryGCodeParameters::safeZ).max().orElse(params.safeZ()));
@@ -768,10 +783,10 @@ public final class GCodeGenerator {
                 throw new IllegalArgumentException("Estratégia de passes alternados exige fresagem sem sondagem.");
         }
         if (preprocessor.isPlotter()) {
-            return generateHpglCncJob(units, tools, params, cancellationToken);
+            return generateHpglCncJob(units, tools, params, cancellationToken, toolNumber);
         }
         if (preprocessor.isLaser()) {
-            return generateLaserCncJob(units, tools, params, parametersByTool, cancellationToken, preprocessor);
+            return generateLaserCncJob(units, tools, params, parametersByTool, cancellationToken, preprocessor, toolNumber);
         }
         if (preprocessor.isRoland() && (params.pauseForToolChange()
                 || tools.stream().filter(tool -> !tool.geometry().isEmpty()).count() > 1))
@@ -786,7 +801,7 @@ public final class GCodeGenerator {
             if (tool.toolProfile() == ToolProfile.V && !tool.geometry().isEmpty()) {
                 VTipSettings settings = vTools.get(i);
                 if (settings == null)
-                    throw new IllegalArgumentException("Ferramenta V " + (i + 1)
+                    throw new IllegalArgumentException("Ferramenta V " + toolNumber.applyAsInt(i)
                             + " exige V-Tip Dia e V-Tip Angle.");
                 depth = settings.cutDepth(tool.toolDiameter());
             }
@@ -846,6 +861,7 @@ public final class GCodeGenerator {
                 continue;
             }
             GeometryGCodeParameters machining = parametersByTool.getOrDefault(toolIndex, params);
+            int number = toolNumber.applyAsInt(toolIndex);
             double toolTravelZ = positions.travelClearance().effective(machining.safeZ(),clearance);
             lastTravelZ = toolTravelZ;
             List<Double> depths = depthsByTool.get(toolIndex);
@@ -875,19 +891,19 @@ public final class GCodeGenerator {
                         line(gcode, "M0 ; troque para a ferramenta (diametro %s %s) e continue",
                                 fmt(tool.toolDiameter()), units);
                     } else {
-                        line(gcode, "%s", preprocessor.selectTool(toolIndex + 1));
-                        line(gcode, "%s", toolChangeCode(preprocessor, params.probing(), toolIndex + 1,
+                        line(gcode, "%s", preprocessor.selectTool(number));
+                        line(gcode, "%s", toolChangeCode(preprocessor, params.probing(), number,
                                 tool.toolDiameter(), units, preprocessor.requiresProbe() ? params.safeZ() : changeZ, machining.feedRateZ()));
                     }
                 }
             } else if (preprocessor.emitsToolNumber()) {
-                line(gcode, "%s", preprocessor.selectTool(toolIndex + 1));
+                line(gcode, "%s", preprocessor.selectTool(number));
                 if (params.pauseForToolChange() || preprocessor.automaticToolSelection()) {
-                    line(gcode, "%s", toolChangeCode(preprocessor, params.probing(), toolIndex + 1,
+                    line(gcode, "%s", toolChangeCode(preprocessor, params.probing(), number,
                             tool.toolDiameter(), units, preprocessor.requiresProbe() ? params.safeZ() : changeZ, machining.feedRateZ()));
                 }
             } else if (changeHere) {
-                line(gcode, "%s", toolChangeCode(preprocessor, null, toolIndex + 1,
+                line(gcode, "%s", toolChangeCode(preprocessor, null, number,
                         tool.toolDiameter(), units, changeZ, machining.feedRateZ()));
             }
             if (changeHere && !preprocessor.requiresProbe()) {
@@ -907,7 +923,7 @@ public final class GCodeGenerator {
                 VTipSettings settings = vTools.get(toolIndex);
                 line(gcode, "%s", preprocessor.comment(String.format(Locale.ROOT,
                         "V tool %d: dia %s, tip %s, angle %s deg, cut Z -%s",
-                        toolIndex + 1, fmt(tool.toolDiameter()), fmt(settings.tipDiameter()),
+                        number, fmt(tool.toolDiameter()), fmt(settings.tipDiameter()),
                         fmt(settings.angleDegrees()), fmt(depths.get(depths.size() - 1)))));
             }
             previousSpindle = machining.spindleSpeedRpm();
@@ -1045,7 +1061,8 @@ public final class GCodeGenerator {
     }
 
     private static CncJobResult generateHpglCncJob(String units, List<ToolGeometry> tools,
-                                                  GeometryGCodeParameters params, CancellationToken cancellation) {
+                                                  GeometryGCodeParameters params, CancellationToken cancellation,
+                                                  java.util.function.IntUnaryOperator toolNumber) {
         if (!"MM".equalsIgnoreCase(units) && !"IN".equalsIgnoreCase(units))
             throw new IllegalArgumentException("Unidades HPGL devem ser MM ou IN.");
         if (params.multiDepth() || params.pauseForToolChange())
@@ -1060,9 +1077,10 @@ public final class GCodeGenerator {
             cancellation.throwIfCancellationRequested();
             ToolGeometry tool = tools.get(index);
             if (tool.geometry().isEmpty()) continue;
-            program.append("CO \"FCFX PEN P").append(index + 1).append(" D")
+            int pen = toolNumber.applyAsInt(index);
+            program.append("CO \"FCFX PEN P").append(pen).append(" D")
                     .append(java.math.BigDecimal.valueOf(tool.toolDiameter()).toPlainString())
-                    .append("\";\nSP").append(index + 1).append(";\n");
+                    .append("\";\nSP").append(pen).append(";\n");
             for (Coordinate[] path : orderedByNearestNeighbor(tool.geometry(), lastX, lastY, cancellation)) {
                 if (path.length < 2) throw new IllegalArgumentException("HPGL requer caminhos XY; pontos isolados nao sao suportados.");
                 boolean distinct = false;
@@ -1102,7 +1120,7 @@ public final class GCodeGenerator {
     private static CncJobResult generateLaserCncJob(String units, List<ToolGeometry> tools,
                                                    GeometryGCodeParameters params, Map<Integer, GeometryGCodeParameters> byTool,
                                                    CancellationToken cancellation,
-                                                   GCodePreprocessor profile) {
+                                                   GCodePreprocessor profile, java.util.function.IntUnaryOperator toolNumber) {
         validateLaserGroups(profile, params, byTool);
         boolean focusPositioned = profile != GCodePreprocessor.GRBL_LASER;
         double clearance = Double.NEGATIVE_INFINITY, lastFocus = params.safeZ();
@@ -1133,7 +1151,7 @@ public final class GCodeGenerator {
             GeometryGCodeParameters group = byTool.getOrDefault(i,params);
             cancellation.throwIfCancellationRequested();
             if (tool.geometry().isEmpty()) continue;
-            line(gcode, "%s", profile.comment("Laser group " + (i+1)));
+            line(gcode, "%s", profile.comment("Laser group " + toolNumber.applyAsInt(i)));
             line(gcode, "%s", profile.comment(GCodeToolpathParser.millMarker(tool.toolDiameter())));
             if (focusPositioned && currentZ != clearance) {
                 line(gcode, "%s Z%s", profile.rapid(), fmt(clearance));

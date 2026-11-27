@@ -28,7 +28,7 @@ import org.locationtech.jts.operation.overlayng.OverlayNGRobust;
 /** An in-memory geometry edit. Atomic lines and polygons remain individually selectable. */
 public final class GeometryEditSession {
 
-    public record ShapeRow(long id, String type, String name) {
+    public record ShapeRow(long id, String type, String name, int toolIndex) {
     }
 
     public enum Operation {
@@ -178,7 +178,8 @@ public final class GeometryEditSession {
                     cancellation.throwIfCancellationRequested();
                     ToolPart input = inputs.get(i);
                     Geometry shape = input.geometry();
-                    if (shape.getEnvelopeInternal().intersects(mask.getEnvelopeInternal()) && shape.intersects(mask)) {
+                    if ((newToolIndex < 0 || input.toolIndex() == newToolIndex)
+                            && shape.getEnvelopeInternal().intersects(mask.getEnvelopeInternal()) && shape.intersects(mask)) {
                         Geometry remaining = OverlayNGRobust.overlay(shape, mask, org.locationtech.jts.operation.overlayng.OverlayNG.DIFFERENCE);
                         if (!remaining.equalsTopo(shape)) {
                             replaced.add(i);
@@ -347,7 +348,7 @@ public final class GeometryEditSession {
             String type = geometry instanceof LinearRing ? "Ring"
                     : geometry instanceof LineString ? "Line"
                     : geometry instanceof Polygon ? "Polygon" : geometry.getGeometryType();
-            rows.add(new ShapeRow(part.id(), type, "Geo Elem"));
+            rows.add(new ShapeRow(part.id(), type, "Geo Elem", part.toolIndex()));
         }
         return List.copyOf(rows);
     }
@@ -381,13 +382,19 @@ public final class GeometryEditSession {
 
     /** Picks the uppermost shape within a world-space tolerance, including thin paths. */
     public void clickSelect(double x, double y, double tolerance, boolean additive) {
+        clickSelect(x, y, tolerance, additive, null);
+    }
+
+    public void clickSelect(double x, double y, double tolerance, boolean additive, Integer toolFilter) {
         Point point = factory.createPoint(new Coordinate(x, y));
         int hit = -1;
         Envelope search = new Envelope(x, x, y, y);
         search.expandBy(Math.max(0, tolerance));
         for (Object candidate : spatialIndex.query(search)) {
             int i = (Integer) candidate;
-            Geometry shape = parts.get(i).geometry();
+            Part part = parts.get(i);
+            if (toolFilter != null && part.toolIndex() != toolFilter) continue;
+            Geometry shape = part.geometry();
             if (i > hit && shape.isWithinDistance(point, Math.max(0, tolerance))) {
                 hit = i;
             }
@@ -402,6 +409,10 @@ public final class GeometryEditSession {
 
     /** Left-to-right encloses; right-to-left touches. Control toggles hits. */
     public void boxSelect(double x1, double y1, double x2, double y2, boolean additive) {
+        boxSelect(x1, y1, x2, y2, additive, null);
+    }
+
+    public void boxSelect(double x1, double y1, double x2, double y2, boolean additive, Integer toolFilter) {
         Envelope box = new Envelope(x1, x2, y1, y2);
         Geometry rectangle = factory.toGeometry(box);
         boolean enclosing = x2 >= x1;
@@ -410,7 +421,9 @@ public final class GeometryEditSession {
         }
         for (Object candidate : spatialIndex.query(box)) {
             int i = (Integer) candidate;
-            Geometry shape = parts.get(i).geometry();
+            Part part = parts.get(i);
+            if (toolFilter != null && part.toolIndex() != toolFilter) continue;
+            Geometry shape = part.geometry();
             boolean hit = enclosing ? rectangle.covers(shape) : rectangle.intersects(shape);
             if (hit && (!additive || !selected.remove(i))) {
                 selected.add(i);
@@ -430,6 +443,21 @@ public final class GeometryEditSession {
         }
         commit(remaining, List.of());
         return true;
+    }
+
+    public boolean assignSelectedTool(int toolIndex) {
+        validateNewTool(toolIndex);
+        List<Part> updated = new ArrayList<>(parts);
+        boolean changed = false;
+        for (int index : selected) {
+            Part part = parts.get(index);
+            if (part.toolIndex() != toolIndex) {
+                updated.set(index, new Part(part.id(), part.geometry(), toolIndex));
+                changed = true;
+            }
+        }
+        if (changed) commit(updated, List.copyOf(selected));
+        return changed;
     }
 
     public OperationRequest prepareOperation(Operation operation, double distance) {
@@ -885,13 +913,19 @@ public final class GeometryEditSession {
 
     /** Only envelope candidates are intersected in the worker; all tools retain their association. */
     public OperationRequest prepareErase(Geometry mask, double dx, double dy) {
+        return prepareErase(mask, dx, dy, null);
+    }
+
+    /** A filtered eraser only mutates parts belonging to the visible tool. */
+    public OperationRequest prepareErase(Geometry mask, double dx, double dy, Integer toolFilter) {
         finiteDisplacement(dx, dy);
         if (mask == null || mask.isEmpty() || mask.getDimension() != 2 || !mask.isValid())
             throw new IllegalArgumentException("Borracha exige um molde com area valida.");
         List<ToolPart> inputs = new ArrayList<>();
         for (Part part : parts) inputs.add(new ToolPart(part.geometry(), part.toolIndex()));
         inputs.add(new ToolPart(AffineTransformation.translationInstance(dx, dy).transform(mask), -1));
-        return new OperationRequest(revision, Operation.ERASE, List.copyOf(selected), inputs, 0);
+        return new OperationRequest(revision, Operation.ERASE, List.copyOf(selected), inputs, 0, null,
+                toolFilter == null ? -1 : toolFilter);
     }
 
     /** Adds an entire generated text in one undo transaction, retaining holes and tool association. */
@@ -992,6 +1026,10 @@ public final class GeometryEditSession {
             result.add(new ToolGeometry(sourceTool.toolDiameter(), geometryFor(i), sourceTool.toolProfile()));
         }
         return List.copyOf(result);
+    }
+
+    public Geometry visibleGeometry(Integer toolFilter) {
+        return toolFilter == null ? resultGeometry() : geometryFor(toolFilter);
     }
 
     private Geometry geometryFor(int toolIndex) {

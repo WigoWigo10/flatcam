@@ -22,6 +22,22 @@ import org.locationtech.jts.geom.LinearRing;
 class GeometryEditSessionTest {
 
     @Test
+    void erasingWithAToolFilterPreservesOverlappingPathsOfOtherTools() {
+        Geometry first = line(1);
+        Geometry second = line(1);
+        var session = new GeometryEditSession(FACTORY.buildGeometry(List.of(first, second)),
+                List.of(new ToolGeometry(.2, first), new ToolGeometry(1, second)));
+        Geometry mask = rectangle(0, -1, 2, 11);
+        var result = session.prepareErase(mask, 0, 0, 0).execute(CancellationToken.none(), ProgressCallback.none());
+
+        assertTrue(session.applyOperation(result));
+        assertTrue(session.resultTools().getFirst().geometry().isEmpty());
+        assertTrue(session.resultTools().getLast().geometry().equalsExact(second));
+        assertTrue(session.undo());
+        assertEquals(2, session.shapeCount());
+    }
+
+    @Test
     void threePointArcPassesThroughMiddleAndSupportsUndo() {
         GeometryEditSession session = new GeometryEditSession(FACTORY.createGeometryCollection(), List.of());
         session.addArc(new Coordinate(1, 0), new Coordinate(0, 1), new Coordinate(-1, 0), -1);

@@ -27,6 +27,47 @@ import org.locationtech.jts.geom.*;
 
 @EnabledOnOs(OS.WINDOWS)
 class GeometryTextEraserPanelTest {
+    @Test void filtersPlotAndTableAndUndoesBulkDeletionAndAssignment() throws Exception {
+        fx(() -> {
+            var factory = new GeometryFactory();
+            var first = factory.createLineString(new Coordinate[]{new Coordinate(10, 40), new Coordinate(12, 40)});
+            var second = factory.createLineString(new Coordinate[]{new Coordinate(42, 40), new Coordinate(48, 40)});
+            var tools = List.of(new ToolGeometry(.2, first), new ToolGeometry(1, second));
+            var h = new Harness(factory.buildGeometry(List.of(first, second)), tools);
+            try {
+                @SuppressWarnings("unchecked")
+                var filter = (ComboBox<Integer>) h.panel.lookup("#geometry-tool-filter");
+                filter.setValue(0);
+                assertEquals(1, h.table().getItems().size());
+                h.click(45, 40);
+                assertTrue(h.table().getSelectionModel().isEmpty(), "A hidden path cannot be picked from the Plot");
+
+                ((Button) h.panel.lookup("#geometry-select-shown")).fire();
+                assertEquals(1, h.table().getSelectionModel().getSelectedItems().size());
+                h.table().fireEvent(new javafx.scene.input.KeyEvent(javafx.scene.input.KeyEvent.KEY_PRESSED,
+                        "", "", KeyCode.DELETE, false, false, false, false));
+                assertTrue(h.table().getItems().isEmpty());
+                assertTrue(h.controller.undoFromShortcut());
+                assertEquals(1, h.table().getItems().size());
+
+                var drawingTool = (ComboBox<?>) h.toolbar.lookup("#geometry-drawing-tool");
+                drawingTool.getSelectionModel().select(1);
+                ((Button) h.panel.lookup("#geometry-assign-tool")).fire();
+                assertTrue(h.table().getItems().isEmpty());
+                filter.setValue(1);
+                assertEquals(2, h.table().getItems().size());
+                assertTrue(h.controller.undoFromShortcut());
+                assertEquals(1, h.table().getItems().size());
+                assertTrue(h.table().getSelectionModel().isEmpty(), "Undo must not select a hidden path");
+                filter.setValue(-1);
+                assertEquals(2, h.table().getItems().size());
+            } finally {
+                h.controller.cancel();
+            }
+            return null;
+        });
+    }
+
     @Test void deleteFromTheShapeTableRemovesShapesAndUndoRestoresThem() throws Exception {
         fx(() -> {
             var factory=new GeometryFactory();

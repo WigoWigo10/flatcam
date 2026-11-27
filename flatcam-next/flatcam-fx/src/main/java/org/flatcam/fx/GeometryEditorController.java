@@ -84,8 +84,13 @@ final class GeometryEditorController {
     private Label status;
     private Label instruction;
     private ComboBox<String> toolChoice;
+    private ComboBox<Integer> toolFilter;
+    private Button selectFiltered;
+    private Button assignTool;
     private int implicitToolIndex;
     private TableView<GeometryEditSession.ShapeRow> shapeTable;
+    private javafx.collections.transformation.FilteredList<GeometryEditSession.ShapeRow> visibleShapes;
+    private javafx.collections.ObservableList<GeometryEditSession.ShapeRow> shapeRows;
     private final Set<Integer> tableSelectionOrder = new LinkedHashSet<>();
     private boolean syncingTable;
     private Button deleteButton;
@@ -221,7 +226,7 @@ final class GeometryEditorController {
                 if (busy) {
                     return;
                 }
-                session.clickSelect(x, y, plotArea.pickToleranceWorld(), additive);
+                session.clickSelect(x, y, plotArea.pickToleranceWorld(), additive, filteredTool());
                 refreshSelection();
             }
 
@@ -230,7 +235,7 @@ final class GeometryEditorController {
                 if (busy) {
                     return;
                 }
-                session.boxSelect(x1, y1, x2, y2, additive);
+                session.boxSelect(x1, y1, x2, y2, additive, filteredTool());
                 refreshSelection();
             }
         });
@@ -238,7 +243,9 @@ final class GeometryEditorController {
         status = new Label();
         instruction = new Label(I18n.text("ui.e2a9c46ac34f"));
         instruction.setWrapText(true);
-        shapeTable = new TableView<>(FXCollections.observableArrayList(session.shapeRows()));
+        shapeRows = FXCollections.observableArrayList(session.shapeRows());
+        visibleShapes = new javafx.collections.transformation.FilteredList<>(shapeRows);
+        shapeTable = new TableView<>(visibleShapes);
         shapeTable.setId("geometry-shapes");
         instruction.setId("geometry-instruction");
         shapeTable.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
@@ -256,13 +263,23 @@ final class GeometryEditorController {
         nameColumn.setPrefWidth(95);
         nameColumn.setSortable(false);
         shapeTable.getColumns().addAll(idColumn, typeColumn, nameColumn);
+        if (tools.size() > 1) {
+            TableColumn<GeometryEditSession.ShapeRow, String> toolColumn = new TableColumn<>(I18n.text("geometry.editor.tool"));
+            toolColumn.setCellValueFactory(row -> new ReadOnlyStringWrapper(toolLabel(tools, row.getValue().toolIndex())));
+            toolColumn.setSortable(false);
+            toolColumn.setPrefWidth(110);
+            shapeTable.getColumns().add(toolColumn);
+        }
         shapeTable.setPrefHeight(360);
         shapeTable.setTooltip(new Tooltip(I18n.text("ui.f791943af647")));
         shapeTable.getSelectionModel().getSelectedIndices().addListener((ListChangeListener<Integer>) change -> {
             if (syncingTable || busy || session == null) {
                 return;
             }
-            Set<Integer> current = new LinkedHashSet<>(shapeTable.getSelectionModel().getSelectedIndices());
+            Set<Integer> current = new LinkedHashSet<>();
+            for (int index : shapeTable.getSelectionModel().getSelectedIndices()) {
+                if (index >= 0 && index < visibleShapes.size()) current.add(visibleShapes.getSourceIndex(index));
+            }
             syncingTable = true;
             try {
                 // Cancel callbacks may refresh the panel; do not let them restore the old table selection.
@@ -373,6 +390,49 @@ final class GeometryEditorController {
         eraserButton.setOnAction(event -> startEraser());
         paintButton.setOnAction(event -> startPaint());
         VBox panel = new VBox(8, new Label("Geometry Editor"), shapeTable, status, instruction);
+        if (tools.size() > 1) {
+            toolFilter = new ComboBox<>();
+            toolFilter.setId("geometry-tool-filter");
+            toolFilter.getItems().add(-1);
+            for (int i = 0; i < tools.size(); i++) toolFilter.getItems().add(i);
+            toolFilter.setValue(-1);
+            toolFilter.setMaxWidth(Double.MAX_VALUE);
+            toolFilter.setConverter(new javafx.util.StringConverter<>() {
+                public String toString(Integer index) {
+                    return index == null || index < 0 ? I18n.text("geometry.editor.allTools") : toolLabel(tools, index);
+                }
+                public Integer fromString(String text) { throw new UnsupportedOperationException(); }
+            });
+            ToolDescriptions.apply(toolFilter, I18n.text("geometry.editor.filter"), I18n.text("geometry.editor.filter.help"));
+            toolFilter.valueProperty().addListener((obs, old, value) -> {
+                if (session == null) return;
+                plotArea.cancelPlacement();
+                session.clearSelection();
+                Integer filter = filteredTool();
+                syncingTable = true;
+                try {
+                    visibleShapes.setPredicate(row -> filter == null || row.toolIndex() == filter);
+                } finally {
+                    syncingTable = false;
+                }
+                ++coordinateRevision;
+                plotArea.updateLayerGeometry(SHAPES_LAYER, session.visibleGeometry(filter));
+                refreshSelection();
+            });
+            selectFiltered = new Button(I18n.text("geometry.editor.selectShown"));
+            selectFiltered.setId("geometry-select-shown");
+            ToolDescriptions.apply(selectFiltered, selectFiltered.getText(), I18n.text("geometry.editor.selectShown.help"));
+            selectFiltered.setOnAction(event -> shapeTable.getSelectionModel().selectAll());
+            assignTool = new Button(I18n.text("geometry.editor.assignTool"));
+            assignTool.setId("geometry-assign-tool");
+            ToolDescriptions.apply(assignTool, assignTool.getText(), I18n.text("geometry.editor.assignTool.help"));
+            assignTool.setOnAction(event -> {
+                plotArea.cancelPlacement();
+                if (session.assignSelectedTool(selectedToolIndex())) refreshGeometry();
+            });
+            var groupActions = new javafx.scene.layout.FlowPane(6, 4, selectFiltered, assignTool);
+            panel.getChildren().addAll(1, List.of(toolFilter, groupActions));
+        }
         arcMode = new ComboBox<>(FXCollections.observableArrayList(EditorArc.Mode.values()));
         arcMode.setId("geometry-arc-mode"); arcMode.setMaxWidth(Double.MAX_VALUE);
         arcMode.setConverter(new javafx.util.StringConverter<>() {
@@ -581,6 +641,7 @@ final class GeometryEditorController {
         panel.getChildren().add(new HBox(10, new Label(I18n.text("ui.42f7fc68175e")), climbRadio, conventionalRadio));
         if (tools.size() > 1) {
             toolChoice = new ComboBox<>();
+            toolChoice.setId("geometry-drawing-tool");
             for (int i = 0; i < tools.size(); i++) {
                 toolChoice.getItems().add(String.format(java.util.Locale.ROOT,
                         I18n.text("ui.315e0a9f9291"), i + 1, tools.get(i).toolDiameter()));
@@ -1163,7 +1224,7 @@ final class GeometryEditorController {
                     public void onCommit(double dx, double dy) {
                         if (eraser != gesture || session != gesture.editing) return;
                         try {
-                            calculate(session.prepareErase(gesture.mask, dx, dy), erased -> {
+                            calculate(session.prepareErase(gesture.mask, dx, dy, filteredTool()), erased -> {
                                 if (eraser != gesture) return;
                                 boolean changed = session.applyOperation(erased);
                                 refreshGeometry();
@@ -1236,6 +1297,16 @@ final class GeometryEditorController {
 
     private int selectedToolIndex() {
         return toolChoice == null ? implicitToolIndex : toolChoice.getSelectionModel().getSelectedIndex();
+    }
+
+    private Integer filteredTool() {
+        Integer index = toolFilter == null ? null : toolFilter.getValue();
+        return index == null || index < 0 ? null : index;
+    }
+
+    private String toolLabel(List<ToolGeometry> tools, int index) {
+        return index < 0 ? "" : String.format(java.util.Locale.ROOT,
+                I18n.text("ui.315e0a9f9291"), index + 1, tools.get(index).toolDiameter());
     }
 
     private boolean readyForTool() {
@@ -1423,9 +1494,12 @@ final class GeometryEditorController {
     private void refreshGeometry() {
         ++coordinateRevision;
         syncingTable = true;
-        shapeTable.getItems().setAll(session.shapeRows());
-        syncingTable = false;
-        plotArea.updateLayerGeometry(SHAPES_LAYER, session.resultGeometry());
+        try {
+            shapeRows.setAll(session.shapeRows());
+        } finally {
+            syncingTable = false;
+        }
+        plotArea.updateLayerGeometry(SHAPES_LAYER, session.visibleGeometry(filteredTool()));
         refreshSelection();
     }
 
@@ -1435,12 +1509,15 @@ final class GeometryEditorController {
             syncingTable = true;
             tableSelectionOrder.clear();
             tableSelectionOrder.addAll(session.selectedIndexOrder());
+            if (tableSelectionOrder.removeIf(index -> visibleShapes.getViewIndex(index) < 0)) {
+                session.selectIndices(tableSelectionOrder);
+            }
             shapeTable.getSelectionModel().clearSelection();
             if (tableSelectionOrder.size() == shapeTable.getItems().size() && !tableSelectionOrder.isEmpty()) {
                 shapeTable.getSelectionModel().selectAll();
             } else {
                 for (int index : tableSelectionOrder) {
-                    shapeTable.getSelectionModel().select(index);
+                    shapeTable.getSelectionModel().select(visibleShapes.getViewIndex(index));
                 }
             }
             syncingTable = false;
@@ -1473,6 +1550,11 @@ final class GeometryEditorController {
         rotationConfirm.setDisable(busy || !rotationReady);
         rotationCancel.setDisable(rotationGesture==null);
         if (toolChoice != null) toolChoice.setDisable(busy);
+        if (toolFilter != null) {
+            toolFilter.setDisable(busy);
+            selectFiltered.setDisable(busy || visibleShapes.isEmpty());
+            assignTool.setDisable(busy || session.selectedCount() == 0);
+        }
         if (busy) {
             editorButtons.forEach(button -> button.setDisable(true));
         }
@@ -1498,8 +1580,13 @@ final class GeometryEditorController {
         status = null;
         instruction = null;
         toolChoice = null;
+        toolFilter = null;
+        selectFiltered = null;
+        assignTool = null;
         implicitToolIndex = -1;
         shapeTable = null;
+        shapeRows = null;
+        visibleShapes = null;
         tableSelectionOrder.clear();
         deleteButton = null;
         moveButton = null;

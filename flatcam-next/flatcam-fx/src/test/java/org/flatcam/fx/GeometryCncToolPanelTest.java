@@ -12,10 +12,14 @@ import javafx.scene.control.Button;
 import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
+import javafx.scene.control.TableView;
 import javafx.scene.control.TextField;
+import javafx.beans.property.BooleanProperty;
 import org.flatcam.cam.gcode.GCodePreprocessor;
+import org.flatcam.cam.gcode.GCodeGenerator;
 import org.flatcam.cam.gcode.GeometryGCodeParameters;
 import org.flatcam.cam.geometry.ToolGeometry;
+import org.flatcam.cam.geometry.ToolProfile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
@@ -25,6 +29,70 @@ import org.locationtech.jts.geom.GeometryFactory;
 /** Checks real controls on the FX thread, without opening a user-visible window. */
 @EnabledOnOs(OS.WINDOWS)
 class GeometryCncToolPanelTest {
+    @Test
+    void submitsTwoVPassesTogetherAndTheLargerCutterAsASeparateProgram() throws Exception {
+        TerminalPanelTest.fx(() -> {
+            var factory = new GeometryFactory();
+            var tools = List.of(
+                    new ToolGeometry(1, factory.createLineString(new Coordinate[]{new Coordinate(50, 0), new Coordinate(55, 0)})),
+                    new ToolGeometry(.2, factory.createLineString(new Coordinate[]{new Coordinate(0, 0), new Coordinate(5, 0)}), ToolProfile.V),
+                    new ToolGeometry(.3, factory.createLineString(new Coordinate[]{new Coordinate(10, 0), new Coordinate(15, 0)}), ToolProfile.V));
+            var output = new AtomicReference<GeometryCncToolPanel.Result>();
+            var root = GeometryCncToolPanel.build("MM", tools.getFirst().geometry(), tools,
+                    new GeometryGCodeParameters(2, .1, false, .1, 100, 10000, true), output::set, () -> {});
+            @SuppressWarnings("unchecked")
+            var profiles = (ComboBox<GCodePreprocessor>) root.lookup("#cnc-preprocessor");
+            profiles.setValue(GCodePreprocessor.GRBL_11_NO_M6);
+            var table = (TableView<?>) root.lookup("#cnc-tools");
+            var include = table.getColumns().stream().filter(col -> "cnc-include-tool".equals(col.getId())).findFirst().orElseThrow();
+            var feed = (TextField) root.lookup("#cnc-feed");
+            for (int i = 1; i <= 2; i++) {
+                table.getSelectionModel().select(i);
+                feed.setText(i == 1 ? "130" : "230");
+                ((TextField) root.lookup("#cnc-v-tip-dia-" + i)).setText("0.1");
+                ((TextField) root.lookup("#cnc-v-tip-angle-" + i)).setText("60");
+            }
+            table.getSelectionModel().select(0);
+            feed.setText("invalid excluded feed");
+            ((BooleanProperty) include.getCellObservableValue(0)).set(false);
+            var generate = (Button) root.lookup("#cnc-generate");
+            generate.fire();
+            var pair = output.get();
+            assertNotNull(pair, ((Label) root.lookup("#cnc-error")).getText());
+            assertEquals(List.of(1, 2), pair.sourceToolIndices());
+            assertEquals(tools.subList(1, 3), pair.tools());
+            assertEquals(130, pair.parametersByTool().get(0).feedRate());
+            assertEquals(230, pair.parametersByTool().get(1).feedRate());
+            assertNotEquals(pair.vTools().get(0).cutDepth(.2), pair.vTools().get(1).cutDepth(.3));
+            assertTrue(CncReviewNavigation.focus(root, new CncPreflight.Target(0, "cnc-feed")));
+            assertEquals(1, table.getSelectionModel().getSelectedIndex());
+            var pairJob = GCodeGenerator.generateGeometryCncJob("MM", pair.tools(), pair.parameters(), pair.vTools(),
+                    pair.parametersByTool(), org.flatcam.cam.CancellationToken.none(), pair.preprocessor(), pair.sourceToolIndices());
+            assertTrue(pairJob.cutGeometry().getEnvelopeInternal().getMaxX() < 20);
+            assertEquals(List.of("T2", "T3"), pairJob.gcode().lines().filter(line -> line.matches("T[0-9]+")).toList());
+            assertEquals(List.of("T2", "T3"), CncPreflight.geometry("rest", "MM", pair).tools().stream()
+                    .map(CncPreflight.Tool::name).toList());
+
+            ((BooleanProperty) include.getCellObservableValue(1)).set(false);
+            ((BooleanProperty) include.getCellObservableValue(2)).set(false);
+            output.set(null);
+            generate.fire();
+            assertNull(output.get());
+            ((BooleanProperty) include.getCellObservableValue(0)).set(true);
+            table.getSelectionModel().select(0);
+            assertEquals("invalid excluded feed", feed.getText());
+            feed.setText("400");
+            generate.fire();
+            var clear = output.get();
+            assertNotNull(clear, ((Label) root.lookup("#cnc-error")).getText());
+            assertEquals(List.of(tools.getFirst()), clear.tools());
+            var clearJob = GCodeGenerator.generateGeometryCncJob("MM", clear.tools(), clear.parameters(), clear.vTools(),
+                    clear.parametersByTool(), org.flatcam.cam.CancellationToken.none(), clear.preprocessor(), clear.sourceToolIndices());
+            assertTrue(clearJob.cutGeometry().getEnvelopeInternal().getMinX() > 45);
+            return null;
+        });
+    }
+
     @Test
     void selectingLaserDisablesMillingFieldsValidatesPowerAndPreservesValuesOnReturn() throws Exception {
         try {

@@ -15,13 +15,19 @@ final class GeometryCncGeneration {
     static Generated generate(String units, List<ToolGeometry> tools, GeometryGCodeParameters parameters,
             Map<Integer, VTipSettings> vTools, Map<Integer, GeometryGCodeParameters> parametersByTool,
             GCodePreprocessor profile, Path output, JobContext context, Runnable validate) throws IOException {
+        return generate(units, tools, parameters, vTools, parametersByTool, profile, List.of(), output, context, validate);
+    }
+
+    static Generated generate(String units, List<ToolGeometry> tools, GeometryGCodeParameters parameters,
+            Map<Integer, VTipSettings> vTools, Map<Integer, GeometryGCodeParameters> parametersByTool,
+            GCodePreprocessor profile, List<Integer> sourceToolIndices, Path output, JobContext context, Runnable validate) throws IOException {
         if (javafx.application.Platform.isFxApplicationThread())
             throw new IllegalStateException(I18n.text("ui.78db309e187a"));
         org.flatcam.cam.CancellationToken cancellation = context::isCancelled;
         cancellation.throwIfCancellationRequested();
         context.reportProgress(Double.NaN, I18n.text("ui.832f88353e51"));
         CncJobResult job = GCodeGenerator.generateGeometryCncJob(units, tools, parameters, vTools,
-                parametersByTool, context::isCancelled, profile);
+                parametersByTool, context::isCancelled, profile, sourceToolIndices);
         context.reportProgress(Double.NaN, I18n.text("ui.9f6776cb8646"));
         int[] lastPercent = {-1};
         GCodeToolpathParser.Result preview;

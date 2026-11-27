@@ -9,6 +9,7 @@ import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.Scene;
+import javafx.scene.control.CheckBox;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.ScrollBar;
 import javafx.scene.control.TableCell;
@@ -33,9 +34,11 @@ class CompactToolsTableTest {
         TerminalPanelTest.fx(() -> {
             for (String tool : List.of("Isolation", "NCC", "GeometryCNC")) {
                 Node panel = panel(tool);
+                boolean cnc = tool.equals("GeometryCNC");
+                int columnCount = cnc ? 4 : 3;
                 TableView<?> table = panel.lookupAll(".table-view").stream()
                         .filter(node -> node instanceof TableView<?> candidate
-                                && candidate.getColumns().size() == 3
+                                && candidate.getColumns().size() == columnCount
                                 && candidate.getStyleClass().contains("compact-tools-table"))
                         .map(node -> (TableView<?>) node).findFirst().orElseThrow();
                 ((Pane) table.getParent()).getChildren().remove(table);
@@ -47,11 +50,12 @@ class CompactToolsTableTest {
                 var originalItems = List.copyOf(table.getItems());
                 for (double width : new double[]{180, 320, 560, 240, 180, 320}) {
                     root.resize(width, 180); root.applyCss(); root.layout();
-                    assertEquals(3, table.getVisibleLeafColumns().size());
+                    assertEquals(columnCount, table.getVisibleLeafColumns().size());
                     assertEquals(32, table.getColumns().get(0).getWidth(), 0.01);
                     assertTrue(table.getColumns().get(1).getWidth() >= 64);
                     double typeWidth = table.getColumns().get(2).getWidth();
-                    assertTrue(typeWidth >= 72 && typeWidth <= 96, tool + " TT width: " + typeWidth);
+                    assertTrue(cnc ? typeWidth >= 32 && typeWidth <= 54 : typeWidth >= 72 && typeWidth <= 96,
+                            tool + " TT width: " + typeWidth);
                     double columnsWidth = table.getColumns().stream().mapToDouble(column -> column.getWidth()).sum();
                     double viewport = table.getWidth() - table.getInsets().getLeft() - table.getInsets().getRight();
                     for (Node node : table.lookupAll(".scroll-bar")) {
@@ -94,7 +98,14 @@ class CompactToolsTableTest {
                     javax.imageio.ImageIO.write(output, "png",
                             Path.of("target", "compact-tools-" + tool + "-" + theme + ".png").toFile());
                 }
-                if (!tool.equals("GeometryCNC")) {
+                if (cnc) {
+                    var include = table.lookupAll(".table-cell").stream()
+                            .filter(node -> node instanceof TableCell<?, ?> cell && cell.getIndex() == 0
+                                    && cell.getGraphic() instanceof CheckBox)
+                            .map(node -> (CheckBox) ((TableCell<?, ?>) node).getGraphic()).findFirst().orElseThrow();
+                    include.fire();
+                    assertEquals(Boolean.FALSE, table.getColumns().get(3).getCellData(0));
+                } else {
                     var editor = table.lookupAll(".table-cell").stream()
                             .filter(node -> node instanceof TableCell<?, ?> cell && cell.getIndex() == 0
                                     && cell.getGraphic() instanceof ComboBox<?>)
